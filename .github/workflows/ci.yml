@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --ignore-scripts : évite le téléchargement/compilation de node-llama-cpp ; les tests n'en ont pas besoin
+      - run: npm ci --ignore-scripts
+      - run: npm test
