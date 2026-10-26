@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # Node 21+ expanse les globs de `node --test tests/*.test.js` sous Windows
           cache: npm
       # --ignore-scripts : évite le téléchargement/compilation de node-llama-cpp ; les tests n'en ont pas besoin
       - run: npm ci --ignore-scripts
