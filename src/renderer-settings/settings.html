@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres — ShamCode</title>
+  <link rel="stylesheet" href="../renderer-visible/styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; margin: 0; }
+    body { display: flex; flex-direction: column; background: var(--bg); }
+
+    /* Barre de titre draggable (fenêtre sans chrome) */
+    .sw-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 12px;
+      height: 36px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .sw-titlebar-title { font-size: 12px; font-weight: 600; color: var(--text-muted); flex: 1; }
+    .sw-titlebar-status { font-size: 11px; color: var(--text-subtle); }
+    .sw-titlebar-status.ok  { color: var(--success); }
+    .sw-titlebar-status.err { color: var(--error); }
+    .sw-close-btn {
+      -webkit-app-region: no-drag;
+      background: none; border: none; cursor: pointer;
+      color: var(--text-subtle); font-size: 14px; line-height: 1;
+      padding: 4px 6px; border-radius: 4px;
+      transition: background 0.12s, color 0.12s;
+    }
+    .sw-close-btn:hover { background: var(--error); color: #fff; }
+
+    /* Layout interne */
+    .sw-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+    .sm-panels { padding: 0 16px; }
+    .sm-panel  { padding: 16px 0; }
+
+    /* Combobox modèle */
+    .sm-combobox { position: relative; flex: 1; }
+    .sm-combobox-value { width: 100%; cursor: pointer; caret-color: transparent; }
+    .sm-combobox-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 0 0 6px 6px; z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    .sm-combobox-dropdown.hidden { display: none; }
+    .sm-combobox-filter {
+      width: 100%; box-sizing: border-box;
+      background: transparent; border: none;
+      border-bottom: 1px solid var(--border-muted);
+      color: var(--text); font-size: 12px; font-family: var(--mono);
+      padding: 6px 10px; outline: none;
+    }
+    .sm-combobox-filter:focus { border-bottom-color: var(--accent); }
+    .sm-combobox-list { max-height: 180px; overflow-y: auto; padding: 4px 0; }
+    .sm-combobox-item {
+      display: block; width: 100%; text-align: left;
+      background: none; border: none; cursor: pointer;
+      padding: 6px 12px; font-size: 12px; font-family: var(--mono);
+      color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sm-combobox-item:hover, .sm-combobox-item:focus { background: var(--hover); outline: none; }
+    .sm-combobox-item.selected { color: var(--accent); }
+
+    /* ── Planificateur ─────────────────────────────────────────────────── */
+    .sm-sched-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .sm-sched-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; background: var(--bg3);
+      border: 1px solid var(--border-muted); border-radius: var(--radius);
+      font-size: 11.5px;
+    }
+    .sm-sched-info { flex: 1; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .sm-sched-label { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sm-sched-cron  { font-size: 10px; color: var(--text-subtle); font-family: var(--mono); }
+    .sm-sched-btns  { display: flex; gap: 4px; flex-shrink: 0; }
+    .sm-examples-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+    .sm-example-item {
+      display: flex; align-items: flex-start; gap: 6px;
+      padding: 4px 6px; background: var(--bg3);
+      border: 1px solid var(--border-muted); border-radius: var(--radius);
+    }
+    .sm-example-text {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-size: 12px; font-family: var(--font);
+      resize: vertical; min-height: 38px; line-height: 1.45;
+    }
+    .sm-mt-xs { margin-top: 10px; }
+    .sm-custom-providers-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .sm-custom-provider-row {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 6px 8px; background: var(--bg3);
+      border: 1px solid var(--border-muted); border-radius: var(--radius);
+    }
+    .sm-cp-top { display: grid; grid-template-columns: 0.7fr 1.3fr auto; gap: 6px; align-items: center; }
+    .sm-cp-model { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+    .sm-cp-model .sm-input { flex: 1; min-width: 0; }
+    .sm-custom-providers-empty { font-size: 12px; color: var(--text-subtle); padding: 4px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Barre de titre ──────────────────────────────────────────────────── -->
+  <div class="sw-titlebar">
+    <span class="sw-titlebar-title">Paramètres</span>
+    <span id="sw-save-status" class="sw-titlebar-status"></span>
+    <button id="btn-sw-close" class="sw-close-btn" title="Fermer">✕</button>
+  </div>
+
+  <!-- ── Corps ──────────────────────────────────────────────────────────── -->
+  <div class="sw-body">
+
+    <!-- Onglets -->
+    <nav class="sm-tabs">
+      <button class="sm-tab active" data-tab="model"  type="button">Modèle</button>
+      <button class="sm-tab"        data-tab="agent"  type="button">Agent</button>
+      <button class="sm-tab"        data-tab="skills" type="button">Skills &amp; Règles</button>
+      <button class="sm-tab"        data-tab="mcp"    type="button">Connecteurs</button>
+      <button class="sm-tab"        data-tab="themes"    type="button">Thèmes</button>
+      <button class="sm-tab"        data-tab="scheduler" type="button">Planificateur</button>
+    </nav>
+
+    <!-- Panneaux -->
+    <div class="sm-panels">
+
+      <!-- ─── ONGLET MODÈLE ──────────────────────────────────────────── -->
+      <div class="sm-panel active" id="sm-panel-model">
+
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-engine">Moteur principal</label>
+          <select id="sm-engine" class="sm-select">
+            <option value="openai-compat">OpenAI-Compatible (proxy, Ollama…)</option>
+            <option value="gemini">Gemini (API Google)</option>
+            <option value="claude">Claude (API Anthropic)</option>
+            <option value="deepseek">DeepSeek (cloud)</option>
+            <option value="webllm">WebLLM — Local GPU (WebGPU)</option>
+            <option value="cpu">Local CPU (node-llama-cpp, GGUF)</option>
+          </select>
+        </div>
+
+        <div class="sm-field-group" id="sm-row-apikey">
+          <label class="sm-label" for="sm-api-key">Clé API</label>
+          <div class="sm-input-row">
+            <input type="password" id="sm-api-key" class="sm-input" placeholder="cc_… / AIza… / sk-ant-… / sk-…" autocomplete="off" />
+            <button id="sm-apikey-toggle" type="button" class="sm-icon-btn" title="Afficher / masquer">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+            </button>
+            <button id="sm-test-engine" type="button" class="sm-btn sm-btn-secondary">Tester</button>
+          </div>
+          <span id="sm-test-result" class="sm-field-status"></span>
+        </div>
+
+        <div class="sm-field-group" id="sm-row-baseurl">
+          <label class="sm-label" for="sm-base-url">URL de base</label>
+          <input type="text" id="sm-base-url" class="sm-input" placeholder="https://codecraftapi.com/v1" />
+        </div>
+
+        <div class="sm-field-group" id="sm-row-deepseek-hint" style="display:none">
+          <p class="sm-hint">URL préréglée : <code>https://api.deepseek.com/v1</code></p>
+        </div>
+
+        <div class="sm-field-group" id="sm-row-modelname">
+          <label class="sm-label" for="sm-model-name">Nom du modèle</label>
+          <div class="sm-input-row">
+            <div class="sm-combobox" id="sm-model-combobox">
+              <input type="text" id="sm-model-name" class="sm-input sm-combobox-value" placeholder="— charger d'abord ↻ —" autocomplete="off" readonly />
+              <div class="sm-combobox-dropdown hidden" id="sm-model-dropdown">
+                <input type="text" id="sm-model-filter" class="sm-combobox-filter" placeholder="Filtrer…" autocomplete="off" />
+                <div id="sm-model-list" class="sm-combobox-list"></div>
+              </div>
+            </div>
+            <button id="sm-load-models" type="button" class="sm-btn sm-btn-secondary">↻ Charger</button>
+          </div>
+          <span id="sm-model-load-status" class="sm-field-status"></span>
+        </div>
+
+        <div class="sm-field-group" id="sm-row-cpu" style="display:none">
+          <label class="sm-label" for="sm-cpu-model-path">Fichier modèle GGUF</label>
+          <div class="sm-input-row">
+            <input type="text" id="sm-cpu-model-path" class="sm-input" placeholder="C:\modèles\qwen2.5-coder-3b-q4.gguf" />
+            <button id="sm-cpu-browse" type="button" class="sm-btn sm-btn-secondary">Parcourir…</button>
+          </div>
+          <p class="sm-hint">Modèle GGUF compatible llama.cpp. Téléchargez sur <a href="#" style="pointer-events:none">Hugging Face</a> (Qwen, Mistral, LLaMA…).</p>
+        </div>
+
+        <div class="sm-field-group" id="sm-row-webllm" style="display:none">
+          <label class="sm-label" for="sm-webllm-model">Modèle local (WebLLM)</label>
+          <select id="sm-webllm-model" class="sm-select">
+            <option value="Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC">1.5B — 2 Go VRAM (test rapide)</option>
+            <option value="Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC">3B — 4 Go VRAM (recommandé)</option>
+            <option value="Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC">7B — 8 Go VRAM</option>
+          </select>
+          <p class="sm-hint">Téléchargé une seule fois (~2-8 Go) puis mis en cache. Nécessite WebGPU.</p>
+          <div class="sm-input-row" style="margin-top:8px">
+            <button id="sm-webllm-clear-cache" type="button" class="sm-btn sm-btn-danger">Supprimer le modèle du cache</button>
+            <span id="sm-webllm-cache-status" class="sm-field-status"></span>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <label class="sm-label">Chaîne de fallback</label>
+          <div class="sm-checkbox-group">
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="webllm"><input type="checkbox" class="sm-fallback-cb" value="webllm" /> WebLLM — Local GPU</label>
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="cpu"><input type="checkbox" class="sm-fallback-cb" value="cpu" /> Local CPU</label>
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="gemini"><input type="checkbox" class="sm-fallback-cb" value="gemini" /> Gemini</label>
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="claude"><input type="checkbox" class="sm-fallback-cb" value="claude" /> Claude</label>
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="deepseek"><input type="checkbox" class="sm-fallback-cb" value="deepseek" /> DeepSeek</label>
+            <label class="sm-checkbox-label sm-fallback-item" data-engine="openai-compat"><input type="checkbox" class="sm-fallback-cb" value="openai-compat" /> OpenAI-compat</label>
+          </div>
+        </div>
+
+        <div class="sm-row-2col">
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-temperature">Température</label>
+            <div class="sm-slider-wrap">
+              <input type="range" id="sm-temperature" class="sm-slider" min="0" max="1" step="0.05" value="0.1" />
+              <span id="sm-temp-val" class="sm-slider-val">0.1</span>
+            </div>
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-top-p">Top-p</label>
+            <input type="number" id="sm-top-p" class="sm-input" min="0" max="1" step="0.05" value="1.0" />
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <span class="sm-label">Streaming</span>
+            <label class="sm-toggle"><input type="checkbox" id="sm-streaming" checked /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <!-- ── Moteur secondaire — Fournisseurs IA ── -->
+        <div class="sm-divider sm-mt"></div>
+        <div class="sm-section-head">
+          <span class="sm-section-label">Moteur secondaire — Vidéo &amp; Images</span>
+          <button id="sm-add-custom-provider" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Enregistrez ici vos fournisseurs IA vidéo, images, audio… Chaque fournisseur nécessite un <strong>nom</strong> (ex : <code>openai</code>), une <strong>URL de base</strong> et une <strong>clé API</strong>. L'agent choisit le fournisseur via son nom.</p>
+        <div id="sm-custom-providers-list" class="sm-custom-providers-list"></div>
+
+        <!-- Footer inline onglet modèle -->
+        <div class="sm-footer" style="margin-top:12px">
+          <button id="btn-settings-save" type="button" class="sm-btn sm-btn-primary">Enregistrer le modèle</button>
+        </div>
+
+      </div><!-- /#sm-panel-model -->
+
+      <!-- ─── ONGLET AGENT ───────────────────────────────────────────── -->
+      <div class="sm-panel" id="sm-panel-agent">
+
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-project-root">Répertoire de travail</label>
+          <div class="sm-input-row">
+            <input type="text" id="sm-project-root" class="sm-input" placeholder="C:\mon-projet" />
+            <button id="sm-choose-folder" type="button" class="sm-btn sm-btn-secondary">Parcourir…</button>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Mode validation (mode Plan)</span>
+              <p class="sm-hint">En mode Action, l'agent est pleinement autorisé à écrire sans validation. En mode Plan, il propose son plan et attend ton accord avant de modifier des fichiers.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-approval-mode" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Mode multi-agents</span>
+              <p class="sm-hint">Bus de communication entre sous-agents pour coordonner leur travail.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-multi-agent" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-row-2col">
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-max-steps">MAX_STEPS</label>
+            <input type="number" id="sm-max-steps" class="sm-input" min="5" max="100" value="25" />
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-retry-parse">Retries JSON invalide</label>
+            <input type="number" id="sm-retry-parse" class="sm-input" min="0" max="5" value="2" />
+          </div>
+        </div>
+
+        <div class="sm-field-group sm-danger-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label sm-danger-label">Exécution shell (run_shell)</span>
+              <p class="sm-hint sm-hint-danger">⚠ Risque élevé — désactivé par défaut.</p>
+            </div>
+            <label class="sm-toggle sm-toggle-danger"><input type="checkbox" id="sm-enable-shell" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Git en écriture</span>
+              <p class="sm-hint">Autorise l'agent à créer des branches et committer (<code>git_create_branch</code>, <code>git_commit</code>).</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-git-write" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Déploiement</span>
+              <p class="sm-hint">Autorise l'agent à déployer le projet (Vercel, Netlify, Fly.io, Docker…).</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-deploy" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-divider"></div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Auto-format après écriture</span>
+              <p class="sm-hint">Lance prettier ou eslint --fix automatiquement après chaque <code>write_file</code>. Nécessite prettier/eslint dans le projet.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-auto-format" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Recherche web (web_search)</span>
+              <p class="sm-hint">Autorise l'agent à chercher sur le web via DuckDuckGo — sans clé API. Actif par défaut.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-web-search" checked /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Dictée vocale (micro)</span>
+              <p class="sm-hint">Affiche un bouton micro dans la zone de saisie : tu parles, l'IA transcrit puis résume l'idée principale dans le champ. Transcription locale (Whisper) — le modèle (~75 Mo) se télécharge à la première dictée. Désactivé par défaut.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-voice" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-voice-model">Précision de la dictée</label>
+          <div class="sm-input-row">
+            <select id="sm-voice-model" class="sm-select">
+              <option value="base">Standard — Whisper base (~75 Mo, rapide)</option>
+              <option value="small">Précis — Whisper small (~250 Mo, plus fidèle)</option>
+            </select>
+            <button id="sm-voice-download" type="button" class="sm-btn sm-btn-secondary">Télécharger</button>
+          </div>
+          <span id="sm-voice-status" class="sm-field-status"></span>
+          <p class="sm-hint">Le modèle choisi est utilisé pour les prochaines dictées. « Télécharger » le prépare maintenant ; sinon il se télécharge à la première dictée. « Précis » comprend mieux le vocabulaire technique, au prix d'une transcription plus lente.</p>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">LSP (lsp_hover / lsp_definition / lsp_references)</span>
+              <p class="sm-hint">Connecte l'agent à un Language Server pour obtenir les types, la définition et les usages d'un symbole. Désactivé par défaut — nécessite un serveur installé.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-lsp" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div id="sm-lsp-config" class="sm-hidden">
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-lsp-ts">Serveur TypeScript/JS</label>
+            <input type="text" id="sm-lsp-ts" class="sm-input" placeholder="typescript-language-server --stdio" />
+            <p class="sm-hint">Installer : <code>npm install -g typescript-language-server typescript</code></p>
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-lsp-py">Serveur Python</label>
+            <input type="text" id="sm-lsp-py" class="sm-input" placeholder="pylsp" />
+            <p class="sm-hint">Installer : <code>pip install python-lsp-server</code></p>
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-lsp-rs">Serveur Rust</label>
+            <input type="text" id="sm-lsp-rs" class="sm-input" placeholder="rust-analyzer" />
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-lsp-go">Serveur Go</label>
+            <input type="text" id="sm-lsp-go" class="sm-input" placeholder="gopls serve" />
+            <p class="sm-hint">Installer : <code>go install golang.org/x/tools/gopls@latest</code></p>
+          </div>
+        </div>
+
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <span class="sm-label">Backup avant écriture</span>
+            <label class="sm-toggle"><input type="checkbox" id="sm-auto-backup" checked /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <div class="sm-row-2col">
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-max-backups">Versions max</label>
+            <input type="number" id="sm-max-backups" class="sm-input" min="1" max="200" value="50" />
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-context-budget">Budget contexte (chars)</label>
+            <input type="number" id="sm-context-budget" class="sm-input" min="4000" max="60000" step="1000" value="12000" />
+          </div>
+        </div>
+
+        <!-- Feedback learning -->
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Feedback learning</span>
+              <p class="sm-hint">Enregistre chaque approbation/rejet de diff et injecte les préférences dans le prompt de l'agent lors de la session suivante.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-feedback-learning" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+
+        <!-- Fix-loop -->
+        <div class="sm-field-group">
+          <div class="sm-toggle-row">
+            <div>
+              <span class="sm-label">Fix-loop (fix_loop)</span>
+              <p class="sm-hint">Boucle autonome test→analyse→fix : l'agent lance les tests, corrige les échecs avec le LLM, répète jusqu'au succès ou au nombre max d'itérations.</p>
+            </div>
+            <label class="sm-toggle"><input type="checkbox" id="sm-enable-fix-loop" /><span class="sm-toggle-track"></span></label>
+          </div>
+        </div>
+        <div id="sm-fix-loop-config" class="sm-hidden">
+          <div class="sm-field-group">
+            <label class="sm-label" for="sm-fix-loop-max-iter">Itérations max (1–10)</label>
+            <input type="number" id="sm-fix-loop-max-iter" class="sm-input" min="1" max="10" value="5" />
+            <p class="sm-hint">Nombre de cycles test→fix avant abandon (défaut : 5).</p>
+          </div>
+        </div>
+
+        <!-- ── Génération vidéo ── -->
+        <div class="sm-section-head sm-mt">
+          <span class="sm-section-label">Génération vidéo IA</span>
+        </div>
+        <p class="sm-hint">Enregistrez votre fournisseur vidéo dans <strong>Fournisseurs IA</strong> ci-dessous avec son nom, son URL de base et sa clé API.</p>
+
+        <div class="sm-section-head sm-mt-xs">
+          <span class="sm-label">Exemples rapides — vidéo</span>
+          <button id="sm-video-add-example" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Ces exemples apparaissent dans la zone de saisie principale — cliquer dessus pré-remplit la tâche.</p>
+        <div id="sm-video-examples-list" class="sm-examples-list"></div>
+
+        <!-- ── Génération d'images ── -->
+        <div class="sm-section-head sm-mt">
+          <span class="sm-section-label">Génération d'images IA</span>
+        </div>
+        <p class="sm-hint">Enregistrez votre fournisseur image dans <strong>Fournisseurs IA</strong> ci-dessous avec son nom, son URL de base et sa clé API.</p>
+
+        <div class="sm-section-head sm-mt-xs">
+          <span class="sm-label">Exemples rapides — images</span>
+          <button id="sm-image-add-example" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Ces exemples apparaissent dans la zone de saisie principale — cliquer dessus pré-remplit la tâche.</p>
+        <div id="sm-image-examples-list" class="sm-examples-list"></div>
+
+
+      </div><!-- /#sm-panel-agent -->
+
+      <!-- ─── ONGLET SKILLS & RÈGLES ─────────────────────────────────── -->
+      <div class="sm-panel" id="sm-panel-skills">
+
+        <div class="sm-section-head">
+          <span class="sm-section-label">Mes instructions à l'agent</span>
+          <button id="sm-add-rule" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Dis à l'agent ce qu'il doit toujours faire ou éviter. Exemples : «Réponds toujours en français», «Explique ton raisonnement avant chaque action».</p>
+        <div id="sm-rules-list" class="sm-rules-list"></div>
+
+        <div class="sm-section-head sm-mt">
+          <span class="sm-section-label">Modules (Skills) activés</span>
+          <button id="sm-add-skill" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Chaque skill est un ensemble d'outils ou de comportements supplémentaires que l'agent peut utiliser.</p>
+        <div id="sm-skills-list" class="sm-skills-list">
+          <div class="sm-skills-empty">Aucun skill installé pour l'instant.</div>
+        </div>
+
+      </div><!-- /#sm-panel-skills -->
+
+      <!-- ─── ONGLET MCP CLI ──────────────────────────────────────────── -->
+      <div class="sm-panel" id="sm-panel-mcp">
+
+        <div class="sm-section-head">
+          <span class="sm-section-label">Connecteurs MCP</span>
+          <button id="sm-add-connector" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Chaque connecteur expose de nouveaux outils à l'agent via le protocole MCP. Type <strong>HTTP/SSE</strong> : serveur distant. Type <strong>stdio</strong> : processus local.</p>
+        <div id="sm-connectors-list" class="sm-connectors-list"></div>
+
+        <!-- Tokens API REST -->
+        <div class="sm-section-head sm-mt">
+          <span class="sm-section-label">Tokens API</span>
+          <button id="sm-add-token" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
+        </div>
+        <p class="sm-hint">Chaque token est stocké chiffré. L'agent y accède via son nom (ex : <code>"github"</code>, <code>"jira"</code>) — jamais la valeur brute.</p>
+        <div id="sm-tokens-list" class="sm-tokens-list"></div>
+
+        <div id="sm-conn-form" class="sm-conn-form sm-hidden">
+          <div class="sm-row-2col">
+            <div class="sm-field-group">
+              <label class="sm-label">Nom du connecteur</label>
+              <input type="text" id="sm-conn-name" class="sm-input" placeholder="Filesystem, GitHub…" />
+            </div>
+            <div class="sm-field-group">
+              <label class="sm-label">Type de transport</label>
+              <select id="sm-conn-type" class="sm-select">
+                <option value="http">HTTP / SSE (distant)</option>
+                <option value="stdio">stdio (processus local)</option>
+              </select>
+            </div>
+          </div>
+          <div class="sm-field-group" id="sm-conn-row-url">
+            <label class="sm-label" id="sm-conn-url-label">URL du serveur</label>
+            <input type="text" id="sm-conn-url" class="sm-input" placeholder="https://mon-serveur-mcp.com/sse" />
+          </div>
+          <div class="sm-field-group sm-hidden" id="sm-conn-row-args">
+            <label class="sm-label">Arguments (un par ligne)</label>
+            <textarea id="sm-conn-args" class="sm-input" rows="2" style="height:auto;padding:6px 10px;resize:vertical" placeholder="/chemin/vers/dossier&#10;--flag"></textarea>
+          </div>
+          <div class="sm-field-group">
+            <label class="sm-label">Header Authorization (optionnel)</label>
+            <input type="text" id="sm-conn-auth" class="sm-input" placeholder="Bearer sk-…" />
+          </div>
+          <div class="sm-conn-form-actions">
+            <button id="sm-conn-save"   type="button" class="sm-btn sm-btn-primary sm-btn-sm">Ajouter</button>
+            <button id="sm-conn-cancel" type="button" class="sm-btn sm-btn-ghost sm-btn-sm">Annuler</button>
+          </div>
+        </div>
+
+      </div><!-- /#sm-panel-mcp -->
+
+      <!-- ─── ONGLET THÈMES ──────────────────────────────────────────── -->
+      <div class="sm-panel" id="sm-panel-themes">
+
+        <p class="sm-section-label sm-mb-6">Thème</p>
+        <div class="sm-theme-cards">
+          <button class="sm-theme-card" data-theme="dark" type="button">
+            <div class="sm-theme-preview" style="background:#0d1117;border-color:#30363d">
+              <div style="background:#161b22;height:8px;border-radius:2px 2px 0 0"></div>
+              <div style="display:flex;gap:3px;padding:4px 4px 0">
+                <div style="background:#21262d;flex:1;height:18px;border-radius:2px"></div>
+                <div style="background:#21262d;flex:2;height:18px;border-radius:2px"></div>
+              </div>
+            </div>
+            <span>Sombre</span>
+          </button>
+          <button class="sm-theme-card" data-theme="light" type="button">
+            <div class="sm-theme-preview" style="background:#ffffff;border-color:#d0d7de">
+              <div style="background:#f6f8fa;height:8px;border-radius:2px 2px 0 0"></div>
+              <div style="display:flex;gap:3px;padding:4px 4px 0">
+                <div style="background:#eaeef2;flex:1;height:18px;border-radius:2px"></div>
+                <div style="background:#eaeef2;flex:2;height:18px;border-radius:2px"></div>
+              </div>
+            </div>
+            <span>Clair</span>
+          </button>
+        </div>
+
+        <p class="sm-section-label sm-mt sm-mb-6">Couleur d'accent</p>
+        <div class="sm-swatches">
+          <button class="sm-swatch" data-accent="#6366f1" style="background:#6366f1" title="Indigo"   type="button"></button>
+          <button class="sm-swatch" data-accent="#3b82f6" style="background:#3b82f6" title="Bleu"     type="button"></button>
+          <button class="sm-swatch" data-accent="#10b981" style="background:#10b981" title="Émeraude" type="button"></button>
+          <button class="sm-swatch" data-accent="#f59e0b" style="background:#f59e0b" title="Ambre"    type="button"></button>
+          <button class="sm-swatch" data-accent="#ef4444" style="background:#ef4444" title="Rouge"    type="button"></button>
+          <button class="sm-swatch" data-accent="#8b5cf6" style="background:#8b5cf6" title="Violet"   type="button"></button>
+        </div>
+
+        <p class="sm-section-label sm-mt sm-mb-6">Police de l'application (code inclus)</p>
+        <div class="sm-font-cards">
+          <button class="sm-font-card" data-font="JetBrains Mono"  type="button" style="font-family:'JetBrains Mono',monospace">JetBrains Mono</button>
+          <button class="sm-font-card" data-font="Fira Code"       type="button" style="font-family:'Fira Code',monospace">Fira Code</button>
+          <button class="sm-font-card" data-font="Cascadia Code"   type="button" style="font-family:'Cascadia Code',monospace">Cascadia Code</button>
+          <button class="sm-font-card" data-font="Consolas"        type="button" style="font-family:'Consolas',monospace">Consolas</button>
+          <button class="sm-font-card" data-font="monospace"       type="button" style="font-family:monospace">Système</button>
+        </div>
+        <p class="sm-hint sm-mt-4">Les polices absentes du système sont signalées : elles retombent sur Consolas.</p>
+
+        <p class="sm-section-label sm-mt sm-mb-6">Densité</p>
+        <div class="sm-density-row">
+          <button class="sm-density-btn" data-density="compact"   type="button">Compact</button>
+          <button class="sm-density-btn" data-density="normal"    type="button">Normal</button>
+          <button class="sm-density-btn" data-density="spacious"  type="button">Spacieux</button>
+        </div>
+
+      </div><!-- /#sm-panel-themes -->
+
+      <!-- ─── ONGLET PLANIFICATEUR ─────────────────────────────────────── -->
+      <div class="sm-panel" id="sm-panel-scheduler">
+
+        <p class="sm-section-label">Tâches planifiées</p>
+        <div id="sm-sched-list" class="sm-sched-list">
+          <p class="sm-hint">Chargement…</p>
+        </div>
+
+        <p class="sm-section-label sm-mt">Nouvelle tâche</p>
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-sched-label">Libellé</label>
+          <input type="text" id="sm-sched-label" class="sm-input" placeholder="Rapport quotidien" autocomplete="off" />
+        </div>
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-sched-task">Tâche (instruction pour l'agent)</label>
+          <textarea id="sm-sched-task" class="sm-input" rows="3" placeholder="Fais un git status et résume les changements"></textarea>
+        </div>
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-sched-cron-preset">Fréquence</label>
+          <select id="sm-sched-cron-preset" class="sm-select">
+            <option value="0 9 * * 1-5">Lun–Ven à 9h</option>
+            <option value="0 9 * * *">Tous les jours à 9h</option>
+            <option value="0 8 * * 1">Chaque lundi à 8h</option>
+            <option value="0 */2 * * *">Toutes les 2 heures</option>
+            <option value="custom">Expression cron personnalisée…</option>
+          </select>
+        </div>
+        <div class="sm-field-group" id="sm-sched-custom-row" style="display:none">
+          <label class="sm-label" for="sm-sched-cron-custom">Expression cron</label>
+          <input type="text" id="sm-sched-cron-custom" class="sm-input" placeholder="0 9 * * 1-5" autocomplete="off" />
+          <p class="sm-hint">Format : minute heure jour mois jour-semaine (0=dim)</p>
+        </div>
+        <div class="sm-field-group">
+          <button id="sm-sched-add" type="button" class="sm-btn sm-btn-primary">Ajouter la tâche</button>
+          <span id="sm-sched-status" class="sm-field-status"></span>
+        </div>
+
+      </div><!-- /#sm-panel-scheduler -->
+
+    </div><!-- /.sm-panels -->
+  </div><!-- /.sw-body -->
+
+  <script src="settings.js"></script>
+</body>
+</html>

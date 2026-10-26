@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShamCode</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── TOPBAR pleine largeur ────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <svg class="brand-logo" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="10,2 18,6.5 18,13.5 10,18 2,13.5 2,6.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <circle cx="10" cy="10" r="2.5" fill="currentColor"/>
+      </svg>
+      <span class="brand-name">ShamCode</span>
+    </div>
+    <div class="topbar-center">
+      <span class="project-icon">�?</span>
+      <span id="project-root-label" title="Dossier projet actif">Aucun projet</span>
+    </div>
+    <div class="topbar-right">
+      <span id="engine-dot" class="engine-dot"></span>
+      <span id="engine-label">—</span>
+      <span id="engine-state" aria-live="polite" class="engine-state-text">Initialisation…</span>
+      <span id="token-counter" class="token-counter hidden" title="Tokens consommés cette session (entrée / sortie)"></span>
+    </div>
+  </header>
+
+  <!-- ── BODY ─────────────────────────────────────────────────────────────── -->
+  <div id="app-body">
+
+    <!-- SIDEBAR — pleine hauteur, 4 parties -->
+    <aside id="sidebar">
+
+      <!-- ── Partie 1 : Nouveau + Recherche ────────────────────────────────── -->
+      <div class="sb-part sb-part-1">
+        <div class="sb-p1-row">
+          <button id="btn-new-project" class="btn-new-project" title="Nouveau projet">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+              <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/>
+            </svg>
+            <span class="sb-label">Nouveau</span>
+          </button>
+          <button id="btn-search-session" class="sb-icon-btn" title="Rechercher une session">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
+            </svg>
+          </button>
+          <button id="btn-sidebar-collapse" class="sb-icon-btn sb-collapse-btn" title="Réduire la barre">
+            <svg class="sb-collapse-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+              <path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+            </svg>
+          </button>
+        </div>
+        <!-- Barre de recherche — affichée/masquée par btn-search-session -->
+        <div id="sb-search-wrap" class="sb-search-wrap sb-label hidden">
+          <svg class="sb-search-icon" viewBox="0 0 16 16" fill="currentColor" width="11" height="11">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
+          </svg>
+          <input type="text" id="sb-search-input" class="sb-search-input" placeholder="Rechercher une session…" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- ── Partie 2 : Connecteurs + Compétences ──────────────────────────── -->
+      <div class="sb-part sb-part-2">
+
+        <!-- Connecteurs MCP / CLI -->
+        <div class="sidebar-nav-item" id="nav-connectors">
+          <button class="sidebar-nav-header" id="btn-nav-connectors">
+            <svg class="snav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1zM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1zM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1zm4.5.5A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1zm4.5.5a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1z"/>
+            </svg>
+            <span class="snav-label">Connecteurs</span>
+            <svg class="snav-chevron" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+          <div class="sidebar-nav-body collapsed" id="nav-connectors-body">
+            <div class="snav-connector-item" id="connector-shell">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/><path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/></svg>
+              <span class="snav-conn-name sb-label">Shell (run_shell)</span>
+              <span class="snav-conn-badge" id="badge-shell">Désactivé</span>
+            </div>
+            <div class="snav-connector-item" id="connector-deploy">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zm.5 5.5a.5.5 0 0 0-1 0v3.793L5.354 7.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 9.293V5.5z"/></svg>
+              <span class="snav-conn-name sb-label">Déploiement (deploy)</span>
+              <span class="snav-conn-badge" id="badge-deploy">Désactivé</span>
+            </div>
+            <div class="snav-connector-item">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M6.5 3.5a.5.5 0 0 0-1 0v8a.5.5 0 0 0 1 0v-8zm3 0a.5.5 0 0 0-1 0v8a.5.5 0 0 0 1 0v-8z"/></svg>
+              <span class="snav-conn-name sb-label">MCP Servers</span>
+              <span class="snav-conn-badge sb-label" id="badge-mcp">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Règles -->
+        <div class="sidebar-nav-item" id="nav-rules">
+          <button class="sidebar-nav-header" id="btn-nav-rules">
+            <svg class="snav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2.5 3a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0 3a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1h-6zm0 3a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1h-6zm0 3a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm10.113-5.373a6.59 6.59 0 0 0-.445-.275l.21-.352a.75.75 0 0 0-.643-1.136.75.75 0 0 0-.642.384l-.21.35a6.59 6.59 0 0 0-.524 0l-.21-.35a.75.75 0 0 0-1.284.752l.21.352a6.59 6.59 0 0 0-.445.275.75.75 0 0 0 .752 1.3 5.09 5.09 0 0 1 .317-.193l.21.352a.75.75 0 0 0 1.285-.752l-.21-.352a5.09 5.09 0 0 1 0 0l.21.352a.75.75 0 0 0 1.284-.752z"/>
+            </svg>
+            <span class="snav-label">Règles</span>
+            <svg class="snav-chevron" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+          <div class="sidebar-nav-body" id="nav-rules-body">
+            <div class="snav-empty sb-label">Aucune règle définie</div>
+            <button class="snav-add-btn" id="btn-add-rule">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>
+              <span class="sb-label">Ajouter une règle</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Skills -->
+        <div class="sidebar-nav-item" id="nav-skills">
+          <button class="sidebar-nav-header" id="btn-nav-skills">
+            <svg class="snav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+            </svg>
+            <span class="snav-label">Skills</span>
+            <svg class="snav-chevron" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+          <div class="sidebar-nav-body" id="nav-skills-body">
+            <div class="snav-empty sb-label">Aucun skill installé</div>
+          </div>
+        </div>
+
+        <!-- Planificateur -->
+        <div class="sidebar-nav-item" id="nav-scheduler">
+          <button class="sidebar-nav-header" id="btn-nav-scheduler">
+            <svg class="snav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+              <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+            </svg>
+            <span class="snav-label">Planificateur</span>
+            <svg class="snav-chevron" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+          <div class="sidebar-nav-body collapsed" id="nav-scheduler-body">
+            <div id="scheduler-task-list">
+              <div class="snav-empty sb-label">Aucune tâche planifiée</div>
+            </div>
+            <!-- Formulaire inline d'ajout -->
+            <div id="scheduler-add-form" class="scheduler-add-form hidden">
+              <input type="text" id="sched-label" class="snav-input sb-label" placeholder="Libellé de la tâche" autocomplete="off" />
+              <textarea id="sched-task" class="snav-input sb-label" placeholder="Décris la tâche pour l'agent…" rows="2"></textarea>
+              <select id="sched-cron-preset" class="snav-input sb-label">
+                <option value="0 9 * * 1-5">Lun–Ven à 9h</option>
+                <option value="0 9 * * *">Tous les jours à 9h</option>
+                <option value="0 8 * * 1">Chaque lundi à 8h</option>
+                <option value="0 */2 * * *">Toutes les 2 heures</option>
+                <option value="custom">Personnalisé…</option>
+              </select>
+              <input type="text" id="sched-cron-custom" class="snav-input sb-label hidden" placeholder="ex : 0 9 * * 1-5" autocomplete="off" />
+              <div class="snav-form-actions">
+                <button id="btn-sched-save" class="snav-add-btn">
+                  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                  <span class="sb-label">Enregistrer</span>
+                </button>
+                <button id="btn-sched-cancel" class="snav-icon-btn">✕</button>
+              </div>
+            </div>
+            <button class="snav-add-btn" id="btn-scheduler-add">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>
+              <span class="sb-label">Ajouter une tâche</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Design Studio -->
+        <div class="sidebar-nav-item">
+          <button id="btn-design-studio" class="sb-action-btn" title="Design Studio — palettes WCAG, tokens CSS, export">🎨 <span class="sb-label">Design Studio</span></button>
+        </div>
+
+      </div>
+
+      <!-- ── Partie 3 : Sessions (¼ hauteur fixe, scroll) ───────────────────── -->
+      <div class="sb-part sb-part-3">
+        <div class="sidebar-sessions-header">
+          <span class="sidebar-title sb-label">Workspace</span>
+          <svg class="sb-part3-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+            <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+          </svg>
+        </div>
+        <div id="sidebar-sessions" class="sidebar-list">
+          <div class="sidebar-empty">Aucune session</div>
+        </div>
+      </div>
+
+      <!-- ── Partie 4 : Actions bas de sidebar ──────────────────────────── -->
+      <div class="sb-part sb-part-4">
+        <div class="sidebar-profile">
+          <div class="profile-avatar" id="profile-avatar">⚙</div>
+          <div class="profile-info sb-label">
+            <span class="profile-name" id="profile-name">Paramètres</span>
+            <span class="profile-engine" id="profile-engine">—</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Poignée resize sidebar -->
+    <div id="resize-sidebar" class="resize-handle-v"></div>
+
+    <!-- Chat + Task panel côte à côte -->
+    <div id="chat-task-row">
+
+        <!-- COLONNE CHAT -->
+        <div id="chat-column">
+          <main id="chat-area">
+            <div id="messages">
+<div class="chat-empty" id="chat-empty">
+  <div>Pose ta question pour démarrer.</div>
+  <div class="chat-empty-suggestions">
+    <button type="button" class="chat-empty-suggestion">Explique ce fichier</button>
+    <button type="button" class="chat-empty-suggestion">Trouve les bugs</button>
+    <button type="button" class="chat-empty-suggestion">Écris un test</button>
+  </div>
+  <div class="chat-empty-hint">Ctrl+L pour placer le curseur dans la saisie</div>
+</div>
+              <div class="welcome-card">
+                <div class="welcome-icon">⬡</div>
+                <h2>ShamCode</h2>
+                <p>Agent de code local piloté par LLM.<br>Développé par <strong>ShamDev</strong>.<br>Décris ta tâche ci-dessous pour commencer.</p>
+              </div>
+            </div>
+          </main>
+
+          <footer id="input-area">
+            <!-- Plan actif : épinglé juste au-dessus de la zone de saisie -->
+            <div id="active-plan" class="active-plan hidden" aria-live="polite">
+              <div class="ap-head">
+                <span class="ap-spin"></span>
+                <span class="ap-label">Plan</span>
+                <span class="ap-objective"></span>
+                <span class="ap-progress"></span>
+              </div>
+              <ol class="ap-steps"></ol>
+            </div>
+            <!-- Fichiers joints -->
+            <div id="attach-chips" class="attach-chips"></div>
+            <!-- Input fichier/image unifié (File API navigateur) -->
+            <input type="file" id="file-input" multiple
+              accept="image/png,image/jpeg,image/gif,image/webp,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.cs,.rb,.php,.html,.css,.json,.yaml,.yml,.md,.txt,.sh,.toml,.xml,.csv,.env"
+              style="display:none">
+            <!-- Popup commandes slash -->
+            <div id="slash-menu" class="slash-menu hidden"></div>
+
+            <!-- Exemples rapides vidéo/image (visibles quand la saisie est vide) -->
+            <div id="prompt-examples" class="prompt-examples hidden"></div>
+
+            <!-- Sélecteur de rôle (persona) + jauge mémoire, juste au-dessus du champ -->
+            <div class="persona-row">
+              <!-- Consommation de la mémoire contextuelle (dernière requête / fenêtre du moteur) -->
+              <span id="ctx-usage" class="ctx-usage hidden"></span>
+              <select id="persona-select" class="persona-select" title="Rôle de l'agent">
+                <option value="dev">⚡ Dev</option>
+                <option value="architecte">🏗 Architecte</option>
+                <option value="securite">🔒 Sécurité</option>
+                <option value="reviewer">👁 Reviewer</option>
+                <option value="cyber">🛡 Cyber</option>
+                <option value="designer">🎨 Designer</option>
+              </select>
+            </div>
+
+            <div id="input-wrapper">
+              <textarea id="task-input" placeholder="Décris ta tâche… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)" rows="2"></textarea>
+              <div id="input-toolbar">
+
+                <!-- ── Gauche : trombone + Plan/Action + modèle ── -->
+                <div class="toolbar-left">
+                  <!-- Joindre un fichier ou une image -->
+                  <button id="btn-attach" class="btn-icon-action btn-icon-attach" title="Joindre un fichier ou une image">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z"/></svg>
+                  </button>
+
+                  <!-- Mode Plan / Action -->
+                  <div id="mode-toggle" class="mode-toggle">
+                    <button id="btn-mode-plan" class="mode-btn mode-btn-active" title="Mode Plan : lecture et analyse, jamais d'écriture">
+                      <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+                      <span class="mode-btn-label">Plan</span>
+                    </button>
+                    <button id="btn-mode-action" class="mode-btn" title="Mode Action : exécute le plan validé">
+                      <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z"/></svg>
+                      <span class="mode-btn-label">Action</span>
+                    </button>
+                  </div>
+
+                  <!-- Toggle approbation des écritures (mode Plan uniquement) -->
+                  <button id="btn-approval-toggle" class="btn-approval-toggle approval-on" disabled title="Mode Action : l'agent écrit sans validation — ce contrôle s'applique au mode Plan">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+                    <span id="approval-toggle-label">Validation</span>
+                  </button>
+
+                  <!-- Toggle mode TDD -->
+                  <button id="btn-tdd-toggle" class="btn-tdd-toggle tdd-off" title="Mode TDD : Red → Green → Refactor (l'agent écrit le test, le fait échouer, puis implémente)">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/></svg>
+                    <span class="mode-btn-label" id="tdd-toggle-label">TDD</span>
+                  </button>
+
+                  <!-- Sélecteur de modèle -->
+                  <div id="model-pill-wrap">
+                    <button id="model-pill" class="model-pill" title="Changer de modèle">
+                      <span class="model-chip-icon" id="model-chip-icon">⚡</span>
+                      <span class="model-chip-provider" id="model-chip-provider">—</span>
+                      <span class="model-chip-sep">·</span>
+                      <span id="model-pill-label" class="model-chip-name">—</span>
+                      <svg class="model-pill-chevron" viewBox="0 0 16 16" fill="currentColor" width="9" height="9"><path d="M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
+                    </button>
+                    <div id="model-dropdown" class="model-dropdown hidden">
+                      <div class="model-dropdown-search">
+                        <input id="model-dropdown-filter" class="model-dropdown-filter" type="text" placeholder="Filtrer les modèles…" autocomplete="off" spellcheck="false" />
+                      </div>
+                      <div id="model-dropdown-list" class="model-dropdown-list"></div>
+                      <div class="model-dropdown-footer">
+                        <span id="model-dropdown-count" class="model-dropdown-count"></span>
+                        <button id="model-dropdown-refresh" class="model-dropdown-refresh">↻ Actualiser</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ── Droite : Stop + Envoyer ── -->
+                <div class="toolbar-right">
+                  <!-- Dictée vocale (visible seulement si activée dans les paramètres) -->
+                  <button id="btn-mic" class="btn-icon-action btn-mic hidden" title="Dicter (cliquer pour parler)">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 0 0 3-3V3a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M3.5 7.5a.5.5 0 0 1 1 0V8a3.5 3.5 0 0 0 7 0v-.5a.5.5 0 0 1 1 0V8a4.5 4.5 0 0 1-4 4.473V14.5h1.5a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1H7.5v-2.027A4.5 4.5 0 0 1 3.5 8v-.5z"/></svg>
+                  </button>
+                  <button id="btn-cancel" class="btn-stop" disabled title="Arrêter l'agent">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+                  </button>
+                  <button id="btn-send" class="btn-send-primary" title="Envoyer (Entrée)">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="15" height="15"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/></svg>
+                  </button>
+                </div>
+
+                </div>
+              </div>
+          </footer>
+        </div><!-- /#chat-column -->
+
+        <!-- Poignée resize task panel -->
+        <div id="resize-task" class="resize-handle-v"></div>
+
+        <!-- TASK PANEL -->
+        <aside id="task-panel">
+
+          <!-- Barre toggle (toujours visible) -->
+          <div class="tp-header-bar">
+            <button id="btn-tp-toggle" class="tp-toggle-btn" title="Réduire le panneau">
+              <svg class="tp-toggle-icon" viewBox="0 0 16 16" fill="currentColor" width="11" height="11">
+                <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+              </svg>
+            </button>
+            <span class="tp-header-title">Tâches</span>
+          </div>
+
+          <!-- Contenu (masqué en mode réduit) -->
+          <div class="tp-content">
+
+          <!-- PANEL 1 : CONNECTED APPS -->
+          <div id="apps-panel" class="tp-panel tp-panel-collapsed">
+            <div class="ca-header">
+              <svg class="ca-header-icon" viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+                <path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1zM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1zM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1zm4.5.5A1.5 1.5 0 0 1 7.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1zm4.5.5a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5v-1zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1z"/>
+              </svg>
+              <span class="ca-title">Apps connectées</span>
+              <div class="ca-header-actions">
+                <button id="btn-apps-ping" class="ca-icon-btn" title="Vérifier toutes les apps">
+                  <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9zm.787-7a7.5 7.5 0 0 1 7.5 7.5h-1a6.5 6.5 0 0 0-6.5-6.5V2zm7.5 14a7.5 7.5 0 0 1-7.5-7.5h1a6.5 6.5 0 0 0 6.5 6.5V16z"/></svg>
+                </button>
+                <button id="btn-apps-add" class="ca-icon-btn" title="Ajouter une app">
+                  <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>
+                </button>
+              </div>
+              <span class="tp-panel-chevron">▾</span>
+            </div>
+
+            <!-- Formulaire ajout inline (masqué par défaut) -->
+            <div id="apps-add-form" class="ca-add-form hidden">
+              <input id="apps-add-input" type="text" class="ca-add-input" placeholder="http://localhost:3000" />
+              <button id="apps-add-confirm" class="ca-add-confirm">OK</button>
+            </div>
+
+            <div id="apps-list" class="ca-list">
+              <div class="ca-empty">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="18" height="18" opacity="0.25"><path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5v-1z"/></svg>
+                <span>Aucune app connectée</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 2 : PROCESSUS ACTIFS -->
+          <div id="procs-panel" class="tp-panel tp-panel-collapsed">
+            <div class="pr-header">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" class="pr-header-icon">
+                <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
+                <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/>
+              </svg>
+              <span class="pr-title">Processus actifs</span>
+              <span id="procs-badge" class="pr-badge hidden">0</span>
+              <span class="tp-panel-chevron">▾</span>
+            </div>
+            <div id="procs-list" class="pr-list">
+              <div class="pr-empty">
+                <span>Aucun processus</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 3 : PLAN -->
+          <div id="tp-plan-panel" class="tp-panel tp-panel-collapsed">
+            <div class="tp-panel-header">
+              <svg class="tp-panel-icon" viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M2.5 3a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm2 3a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7zm2 3a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3zm-4 3a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11z"/><path d="M0 1.5A.5.5 0 0 1 .5 1H4a.5.5 0 0 1 0 1H.5a.5.5 0 0 1-.5-.5zm0 5a.5.5 0 0 1 .5-.5H4a.5.5 0 0 1 0 1H.5A.5.5 0 0 1 0 6.5zm0 5a.5.5 0 0 1 .5-.5H4a.5.5 0 0 1 0 1H.5a.5.5 0 0 1-.5-.5z"/></svg>
+              <span id="task-panel-title" class="tp-panel-title">Plan</span>
+              <button id="btn-task-panel-clear" class="tp-btn-clear" title="Effacer">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854z"/></svg>
+              </button>
+              <span class="tp-panel-chevron">▾</span>
+            </div>
+            <div class="tp-panel-body">
+              <div id="tp-progress" class="tp-section tp-section-hidden">
+                <div class="tp-progress-head">
+                  <span class="tp-section-label">Progression</span>
+                  <span id="tp-progress-pct" class="tp-progress-pct">0 %</span>
+                </div>
+                <div class="tp-progress-bar"><span id="tp-progress-fill" class="tp-progress-fill"></span></div>
+                <div id="tp-progress-counts" class="tp-progress-counts"></div>
+              </div>
+              <div id="tp-objective" class="tp-section tp-section-hidden">
+                <div class="tp-section-label">Objectif général</div>
+                <div id="tp-objective-text" class="tp-objective-text"></div>
+              </div>
+              <div id="tp-todos" class="tp-section tp-section-hidden">
+                <div class="tp-section-label">Tâches stratégiques</div>
+                <ol id="tp-todos-list" class="tp-todos-list"></ol>
+              </div>
+              <div id="tp-idle" class="tp-idle">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="20" height="20" opacity="0.2"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
+                <span>En attente</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 4 : EXÉCUTION -->
+          <div id="tp-exec-panel" class="tp-panel tp-panel-collapsed">
+            <div class="tp-panel-header">
+              <svg class="tp-panel-icon" viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M5.52.359A.5.5 0 0 1 6 0h4a.5.5 0 0 1 .474.658L8.694 6H12.5a.5.5 0 0 1 .395.807l-7 9a.5.5 0 0 1-.873-.454L6.823 9.5H3.5a.5.5 0 0 1-.48-.641l2.5-8.5z"/></svg>
+              <span class="tp-panel-title">Exécution</span>
+              <span class="tp-panel-chevron">▾</span>
+            </div>
+            <div class="tp-panel-body" id="tp-execution">
+              <div id="tp-exec-list" class="tp-exec-list"></div>
+              <div id="tp-exec-empty" class="tp-exec-empty">Aucune action</div>
+            </div>
+          </div><!-- /.tp-content -->
+
+          </div>
+
+          <!-- Bouton don — enfant direct du panneau, collé tout en bas -->
+          <div class="tp-donate-wrap">
+            <button id="btn-donate" class="tp-donate-btn" title="Soutenir ShamCode ♥">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+                <path d="M10 17s-7-4.35-7-9a5 5 0 0 1 7-4.58A5 5 0 0 1 17 8c0 4.65-7 9-7 9z"/>
+              </svg>
+              Soutenir ShamCode
+            </button>
+          </div>
+        </aside>
+
+      </div><!-- /#chat-task-row -->
+
+  </div><!-- /#app-body -->
+
+
+  <!-- ── DIALOG SESSIONS ──────────────────────────────────────────────────── -->
+  <dialog id="sessions-dialog">
+    <div class="dialog-header">
+      <h2>Sessions passées</h2>
+      <button class="btn-close" id="btn-sessions-close">✕</button>
+    </div>
+    <div class="dialog-body">
+      <div id="sessions-list">Chargement…</div>
+    </div>
+  </dialog>
+
+  <!-- ── Visionneuse de fichiers flottante (onglets par fichier) ──────────── -->
+  <div id="file-viewer" class="file-viewer hidden" role="dialog" aria-label="Lecteur de fichiers du projet">
+    <div class="fv-head" id="fv-head">
+      <div class="fv-tabs" id="fv-tabs"></div>
+      <button class="fv-close" id="fv-close" title="Fermer la visionneuse">✕</button>
+    </div>
+    <div class="fv-body">
+      <pre id="fv-content" class="fv-content"></pre>
+      <div id="fv-empty" class="fv-empty">Clique sur un fichier du chat pour l'ouvrir ici.</div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{
+  "name": "code-harness",
+  "version": "0.3.0",
+  "description": "ShamCode — agent de code desktop local (LLM local via WebGPU + fallback cloud), développé par ShamDev",
+  "productName": "ShamCode",
+  "main": "src/main/main.js",
+  "bin": {
+    "harness": "./bin/harness.js"
+  },
+  "scripts": {
+    "icons": "node scripts/generate-icons.js",
+    "start": "electron .",
+    "dev": "electron .",
+    "index": "node scripts/generate-index.js",
+    "mcp": "node src/mcp-server/server.js",
+    "harness": "node bin/harness.js",
+    "build:win": "electron-builder --win --config electron-builder.yml",
+    "build:win:dir": "electron-builder --win --dir --config electron-builder.yml",
+    "test": "node --test tests/*.test.js",
+    "eval": "node tests/eval/run.js",
+    "lint": "eslint src/main src/harness src/shared tests",
+    "lint:fix": "eslint src/main src/harness src/shared tests --fix",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.js\""
+  },
+  "keywords": [
+    "electron",
+    "llm",
+    "webgpu",
+    "code-agent",
+    "local-ai"
+  ],
+  "author": "m.benshamir@gmail.com",
+  "license": "MIT",
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.0.0",
+    "electron-reload": "^2.0.0-alpha.1",
+    "eslint": "^8.57.0",
+    "png2icons": "^2.0.1",
+    "prettier": "^3.3.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "diff": "^5.2.0",
+    "node-cron": "^4.6.0",
+    "node-llama-cpp": "^3.22.2",
+    "puppeteer-core": "^25.14.0"
+  },
+  "build": {
+    "appId": "com.benshamir.code-harness",
+    "productName": "ShamCode",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis"
+        }
+      ],
+      "icon": "assets/icons/app.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true
+    }
+  },
+  "allowScripts": {
+    "electron@30.5.1": true,
+    "node-llama-cpp@3.22.2": true
+  }
+}

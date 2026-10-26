@@ -1,0 +1,56 @@
+node_modules/
+dist/
+data/
+.env
+.env.local
+
+# Clés API — ne jamais committer
+*.key
+secrets.json
+config.json
+
+# Modèles téléchargés (gros fichiers)
+models/
+*.gguf
+*.bin
+
+# Electron build cache + electron-builder cache
+.webpack/
+out/
+build/
+__pycache__/
+
+# Données runtime (sessions, backups, RAG, feedback)
+sessions/
+backups/
+rag/
+.harness/
+
+# Fichiers de travail locaux (sorties de tests, logs, notes)
+build.log
+test-out.txt
+test-phase3.txt
+testout.txt
+testout2.txt
+tmp-test-out.txt
+test.md
+deepseek_txt_*.txt
+/2396
+/2928
+/3348
+Sham/
+
+# Documents internes (non publiés)
+PASSATION.md
+docs/ANALYSE_PROJET_ET_CONCURRENCE.md
+CAHIER_DES_CHARGES.txt
+
+# Fichiers OS
+.DS_Store
+Thumbs.db
+
+# Fichiers parasites
+/\!declared.has(m)
+/'
+Sham
+scripts/tmp-*.js

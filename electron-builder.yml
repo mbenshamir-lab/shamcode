@@ -1,0 +1,52 @@
+appId: com.benshamir.code-harness
+productName: ShamCode
+copyright: "© 2026 m.benshamir@gmail.com"
+
+# Dossiers
+directories:
+  output: dist
+  buildResources: assets
+
+# Fichiers à inclure dans le paquet
+files:
+  - src/**/*
+  - assets/**/*
+  - package.json
+  # renderer-hidden inclus — moteur WebLLM (engine.js chargé via ESM CDN)
+  # Dictée vocale : Whisper tourne en WASM (onnxruntime-web) — les binaires natifs sont inutiles (~290 Mo)
+  - "!node_modules/onnxruntime-node/**"
+  - "!node_modules/sharp/**"
+  - "!node_modules/@img/**"
+  - "!**/*.map"
+  - "!**/*.test.js"
+  - "!**/node_modules/.cache/**"
+
+# Compression asar
+asar: true
+
+# Windows uniquement (prioritaire selon la spec)
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icons/app.ico
+  requestedExecutionLevel: asInvoker
+  # Pas de certificat de signature pour le dev — désactivé
+  sign: null
+  signingHashAlgorithms: []
+
+# Installeur NSIS
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "ShamCode"
+  installerIcon: assets/icons/app.ico
+  uninstallerIcon: assets/icons/app.ico
+
+# Métadonnées
+extraMetadata:
+  version: "0.3.0"

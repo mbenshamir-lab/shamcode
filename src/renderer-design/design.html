@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design Studio — ShamCode</title>
+  <link rel="stylesheet" href="design.css">
+</head>
+<body>
+
+<div id="titlebar">
+  <span id="titlebar-title">🎨 Design Studio</span>
+  <button id="btn-close" title="Fermer">✕</button>
+</div>
+
+<div id="app">
+  <div id="tabbar">
+    <button class="tab-btn active" data-tab="palette">🎨 Palette</button>
+    <button class="tab-btn"        data-tab="contrast">⚡ Contraste WCAG</button>
+    <button class="tab-btn"        data-tab="tokens">🗂 Tokens CSS</button>
+    <button class="tab-btn"        data-tab="export">📤 Export</button>
+  </div>
+
+  <div id="panels">
+
+    <!-- ── PALETTE ─────────────────────────────────────── -->
+    <div class="panel active" id="panel-palette">
+
+      <div class="section">
+        <div class="section-title">Couleur de base</div>
+        <div class="palette-controls">
+          <input type="color" id="pal-picker" value="#3B82F6" title="Choisir une couleur">
+          <input type="text"  id="pal-hex"    value="#3B82F6" placeholder="#RRGGBB" style="max-width:120px">
+          <select id="pal-harmony">
+            <option value="mono">Monochromatique</option>
+            <option value="comp">Complémentaire</option>
+            <option value="analogous">Analogique</option>
+            <option value="triadic">Triadique</option>
+            <option value="split">Split-complémentaire</option>
+          </select>
+          <button class="btn" id="btn-gen-palette">Générer</button>
+        </div>
+
+        <!-- Simulation daltonisme sur la palette -->
+        <div class="cvd-filter-row" id="pal-cvd-row" style="display:none">
+          <label>👁 Voir comme :</label>
+          <div class="cvd-btn-group">
+            <button class="cvd-filter-btn active" data-cvd="">Normal</button>
+            <button class="cvd-filter-btn" data-cvd="deuteranopia">Deutéranopie</button>
+            <button class="cvd-filter-btn" data-cvd="protanopia">Protanopie</button>
+            <button class="cvd-filter-btn" data-cvd="tritanopia">Tritanopie</button>
+            <button class="cvd-filter-btn" data-cvd="achromatopsia">Achromatopsie</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Éditeur de courbe de luminosité -->
+      <div class="section" id="section-curve" style="display:none">
+        <div class="section-title">
+          Courbe de luminosité
+          <span class="section-title-actions">
+            <button class="btn small secondary" id="btn-curve-reset">Réinitialiser</button>
+            <button class="btn small secondary" id="btn-curve-tailwind">Tailwind</button>
+          </span>
+        </div>
+        <div class="curve-wrapper">
+          <div class="curve-y-labels">
+            <span>L 100</span><span>75</span><span>50</span><span>25</span><span>0</span>
+          </div>
+          <div class="curve-canvas-wrap">
+            <svg id="curve-svg" viewBox="0 0 290 110" width="290" height="110" style="overflow:visible">
+              <defs>
+                <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#7c6af7" stop-opacity="0.15"/>
+                  <stop offset="100%" stop-color="#7c6af7" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="27.5" x2="290" y2="27.5"  stroke="#ffffff08" stroke-width="1"/>
+              <line x1="0" y1="55"   x2="290" y2="55"    stroke="#ffffff14" stroke-width="1"/>
+              <line x1="0" y1="82.5" x2="290" y2="82.5"  stroke="#ffffff08" stroke-width="1"/>
+              <!-- Area fill under curve -->
+              <path id="curve-area" fill="url(#curve-grad)"/>
+              <!-- Curve path -->
+              <path id="curve-path" fill="none" stroke="#7c6af7" stroke-width="2" stroke-linejoin="round"/>
+              <!-- Handles group -->
+              <g id="curve-handles"></g>
+            </svg>
+            <div class="curve-x-labels" id="curve-x-labels"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="section-swatches" style="display:none">
+        <div class="section-title" id="swatches-title">Palette générée</div>
+        <div class="swatches-grid" id="swatches-grid"></div>
+      </div>
+
+      <div class="section" id="section-harmonies" style="display:none">
+        <div class="section-title">Harmonies de couleurs</div>
+        <div class="harmonies-grid" id="harmonies-grid"></div>
+      </div>
+
+      <div class="empty-state" id="palette-empty">
+        <div class="empty-icon">🎨</div>
+        <div class="empty-msg">Entrez une couleur hexadécimale et cliquez <strong>Générer</strong></div>
+      </div>
+    </div>
+
+    <!-- ── CONTRASTE WCAG ──────────────────────────────── -->
+    <div class="panel" id="panel-contrast">
+      <div class="section">
+        <div class="section-title">Couleurs à comparer</div>
+        <div class="contrast-layout">
+          <div>
+            <div class="input-row">
+              <label>Texte</label>
+              <input type="color" id="ct-fg-picker" value="#1a1b1e">
+              <input type="text"  id="ct-fg-hex"    value="#1a1b1e" style="max-width:110px">
+            </div>
+            <div class="input-row">
+              <label>Fond</label>
+              <input type="color" id="ct-bg-picker" value="#ffffff">
+              <input type="text"  id="ct-bg-hex"    value="#ffffff" style="max-width:110px">
+            </div>
+            <div class="contrast-preview-box" id="ct-preview-box">
+              <div class="preview-aa-sample"    id="ct-preview-large">Aa</div>
+              <div class="preview-small-sample" id="ct-preview-small">Texte normal (14px)</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="text-align:center;margin-bottom:12px;">
+              <div class="ratio-display" id="ct-ratio">—</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:4px;">rapport de contraste</div>
+            </div>
+            <table class="wcag-table">
+              <thead><tr><th>Niveau</th><th>Texte normal</th><th>Grand texte</th></tr></thead>
+              <tbody>
+                <tr><td>AA (4.5 / 3)</td><td id="ct-aa-normal">—</td><td id="ct-aa-large">—</td></tr>
+                <tr><td>AAA (7 / 4.5)</td><td id="ct-aaa-normal">—</td><td id="ct-aaa-large">—</td></tr>
+              </tbody>
+            </table>
+            <div style="margin-top:14px;">
+              <div class="section-title">Suggestions conformes AA</div>
+              <div class="autofix-row" id="ct-autofix"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulation daltonisme -->
+      <div class="section">
+        <div class="section-title">Simulation daltonisme</div>
+        <div class="cvd-grid" id="cvd-grid"></div>
+      </div>
+    </div>
+
+    <!-- ── TOKENS CSS ──────────────────────────────────── -->
+    <div class="panel" id="panel-tokens">
+      <div class="tokens-toolbar">
+        <button class="btn" id="btn-scan-tokens">🔍 Scanner le projet</button>
+        <input type="text" class="tokens-search" id="tokens-search" placeholder="Filtrer les tokens…">
+        <span class="tokens-stats" id="tokens-stats"></span>
+      </div>
+      <!-- Légende sources -->
+      <div class="tokens-sources" id="tokens-sources" style="display:none">
+        <span class="source-badge css">CSS</span>
+        <span class="source-badge scss">SCSS</span>
+        <span class="source-badge js">JS/TS</span>
+      </div>
+      <div id="tokens-content">
+        <div class="empty-state">
+          <div class="empty-icon">🗂</div>
+          <div class="empty-msg">Cliquez <strong>Scanner le projet</strong> pour extraire les tokens CSS, SCSS et JS/TS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EXPORT ──────────────────────────────────────── -->
+    <div class="panel" id="panel-export">
+      <div class="section">
+        <div class="section-title">Exporter la palette</div>
+        <div id="export-no-palette" class="empty-state">
+          <div class="empty-icon">📤</div>
+          <div class="empty-msg">Générez d'abord une palette dans l'onglet <strong>Palette</strong></div>
+        </div>
+        <div id="export-content" style="display:none">
+          <div class="export-controls">
+            <div class="export-format-btns">
+              <button class="format-btn active" data-fmt="css">CSS Variables</button>
+              <button class="format-btn"        data-fmt="tailwind">Tailwind</button>
+              <button class="format-btn"        data-fmt="scss">SCSS</button>
+              <button class="format-btn"        data-fmt="json">JSON</button>
+              <button class="format-btn"        data-fmt="w3c">W3C Tokens</button>
+            </div>
+            <button class="btn small" id="btn-copy-export">📋 Copier</button>
+          </div>
+          <pre class="code-output" id="export-code"></pre>
+          <div class="export-actions">
+            <input type="text" class="export-path-input" id="export-path" placeholder="Ex : src/styles/tokens.css">
+            <button class="btn" id="btn-write-export">💾 Écrire dans le projet</button>
+            <span id="write-status" class="write-status" style="display:none"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="design.js"></script>
+</body>
+</html>

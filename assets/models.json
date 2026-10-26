@@ -1,0 +1,26 @@
+[
+  {
+    "id": "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC",
+    "label": "Qwen2.5-Coder 1.5B (léger)",
+    "size_gb": 1.0,
+    "vram_gb": 2,
+    "quality": "faible",
+    "usage": "autocomplete, petites modifs"
+  },
+  {
+    "id": "Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC",
+    "label": "Qwen2.5-Coder 3B (défaut)",
+    "size_gb": 2.0,
+    "vram_gb": 4,
+    "quality": "moyen",
+    "usage": "refactor local, fixes simples"
+  },
+  {
+    "id": "Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC",
+    "label": "Qwen2.5-Coder 7B (recommandé)",
+    "size_gb": 4.5,
+    "vram_gb": 8,
+    "quality": "bon",
+    "usage": "coding multi-fichiers"
+  }
+]

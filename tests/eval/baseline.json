@@ -1,0 +1,1338 @@
+{
+  "generatedAt": "2026-10-24T01:00:49.550Z",
+  "node": "v24.9.0",
+  "promptHash": "5cd799b5",
+  "summary": {
+    "tasks": 19,
+    "passed": 19,
+    "failed": 0,
+    "known": 0,
+    "unknown": 0,
+    "checks": 84,
+    "checksPassed": 84,
+    "avgSteps": 4.2,
+    "systemChars": 16864,
+    "parseErrors": 1,
+    "toolErrors": 6,
+    "durationMs": 4502
+  },
+  "tasks": [
+    {
+      "id": "nominal-fix",
+      "category": "nominal",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fichier corrigé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fichier non corrompu",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "tests exécutés et verts",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aucune erreur d'outil",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "budget respecté (≤ 8 étapes)",
+          "ok": true,
+          "detail": "6 étapes"
+        },
+        {
+          "name": "catalogue ciblé (ni navigateur ni média)",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 6,
+        "systemChars": 16864,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "README.md",
+          "package.json"
+        ],
+        "promptHash": "5cd799b5",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"planned\":true}\n\n[Étape 1/12 — 11 restantes]",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 2/12 — 10 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 3/12 — 9 restantes] · modifiés: src/math.js(non relu) · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 4/12 — 8 restantes] · modifiés: src/math.js · lus: 1",
+          "Résultat : {\"ok\":true,\"runner\":\"npm\",\"exitCode\":0,\"stdout\":\"\\n> bugfix-demo@1.0.0 test\\n> node --test\\n\\n✔ sum additionne tous les éléments (1.8819ms)\\n✔ average renvoie la moyenne (0.3714ms)\\nℹ tests 2\\nℹ suites 0\\nℹ pass 2\\nℹ fail 0\\nℹ cancelled 0\\nℹ skipped 0\\nℹ todo 0\\nℹ duration_ms 321.8804\\n\",\"passed\":2}\n\n[Étape 5/12 — 7 restantes] · modifiés: src/math.js · lus: 1"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"planned\":true}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}",
+          "{\"ok\":true,\"path\":\"src/math.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}",
+          "{\"ok\":true,\"runner\":\"npm\",\"exitCode\":0,\"stdout\":\"\\n> bugfix-demo@1.0.0 test\\n> node --test\\n\\n✔ sum additionne tous les éléments (1.8819ms)\\n✔ average renvoie la moyenne (0.3714ms)\\nℹ tests 2\\nℹ suites 0\\nℹ pass 2\\nℹ fail 0\\nℹ cancelled 0\\nℹ skipped 0\\nℹ todo 0\\nℹ duration_ms 321.8804\\n\",\"passed\":2}"
+        ],
+        "durationMs": 2171
+      },
+      "error": null
+    },
+    {
+      "id": "recover-json",
+      "category": "recovery",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée malgré le format invalide",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "erreur de parse détectée",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "pas de consommation excessive",
+          "ok": true,
+          "detail": "2 étapes"
+        }
+      ],
+      "metrics": {
+        "steps": 2,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "99982973",
+        "toolErrors": 0,
+        "parseErrors": 1,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Format invalide (JSON_INTROUVABLE). Réponds uniquement avec un JSON valide :\n{\"tool\": \"<nom>\", \"args\": { ... }}"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [],
+        "durationMs": 53
+      },
+      "error": null
+    },
+    {
+      "id": "recover-block",
+      "category": "recovery",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée après l'échec",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "BLOC_INTROUVABLE remonté",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fichier corrigé malgré l'échec",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "guidage de relecture émis",
+          "ok": true,
+          "detail": "1"
+        }
+      ],
+      "metrics": {
+        "steps": 4,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "99982973",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "BLOC_INTROUVABLE"
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Erreur outil : BLOC_INTROUVABLE\n\n→ Relis le fichier entier avec read_file { \"path\": \"src/math.js\" }, puis copie le bloc exact avant de retenter replace_code.\n\n[Étape 1/12 — 11 restantes] · dernier échec: replace_code (BLOC_INTROUVABLE)",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 2/12 — 10 restantes] · lus: 1 · dernier échec: replace_co",
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 3/12 — 9 restantes] · modifiés: src/math.js(non relu) · lus: 1 · dernier échec: replace_code (BLOC_INTROUVABLE)"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 1,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":false,\"error\":\"BLOC_INTROUVABLE\",\"hint\":\"Début du fichier (20 lignes) :\\n'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}",
+          "{\"ok\":true,\"path\":\"src/math.js\"}"
+        ],
+        "durationMs": 104
+      },
+      "error": null
+    },
+    {
+      "id": "path-guard",
+      "category": "security",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "lecture hors projet bloquée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aucun contenu système injecté",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "lecture normale toujours possible",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 3,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "99982973",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "PATH_GUARD: chemin hors projet — C:\\Users\\WORK\\AppData\\Local\\Temp\\Windows\\win.ini"
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Erreur outil : PATH_GUARD: chemin hors projet — C:\\Users\\WORK\\AppData\\Local\\Temp\\Windows\\win.ini\n\n[Étape 1/12 — 11 restantes] · lus: 1 · dernier échec: read_file (PATH_GUARD)",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 2/12 — 10 restantes] · lus: 2 · dernier échec: read_file "
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":false,\"error\":\"PATH_GUARD: chemin hors projet — C:\\\\Users\\\\WORK\\\\AppData\\\\Local\\\\Temp\\\\Windows\\\\win.ini\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}"
+        ],
+        "durationMs": 42
+      },
+      "error": null
+    },
+    {
+      "id": "approval-reject",
+      "category": "security",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "refus remonté au modèle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aucun fichier créé",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 2,
+        "systemChars": 15792,
+        "contextChars": 410,
+        "ragFirst": "src/strings.js",
+        "ragPaths": [
+          "src/strings.js",
+          "README.md"
+        ],
+        "promptHash": "47b7448a",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "REJETÉ_PAR_UTILISATEUR"
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Erreur outil : REJETÉ_PAR_UTILISATEUR\n\n[Étape 1/12 — 11 restantes] · dernier échec: write_file (REJETÉ_PAR_UTILISATEUR)"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":false,\"error\":\"REJETÉ_PAR_UTILISATEUR\"}"
+        ],
+        "durationMs": 55
+      },
+      "error": null
+    },
+    {
+      "id": "feature-create",
+      "category": "nominal",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fonction ajoutée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "export mis à jour",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "slugify préservée",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 5,
+        "systemChars": 15792,
+        "contextChars": 410,
+        "ragFirst": "src/strings.js",
+        "ragPaths": [
+          "src/strings.js",
+          "README.md"
+        ],
+        "promptHash": "47b7448a",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"planned\":true}\n\n[Étape 1/12 — 11 restantes]",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\nfunction slugify(text) {\\n  return text.trim().toLowerCase().replace(/\\\\s+/g, '-');\\n}\\n\\nmodule.exports = { slugify };\\n\",\"total_lines\":8}\n\n[Étape 2/12 — 10 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"path\":\"src/strings.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/strings.js\" } avant toute autre action.\n\n[Étape 3/12 — 9 restantes] · modifiés: src/strings.js(non relu) · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\nfunction slugify(text) {\\n  return text.trim().toLowerCase().replace(/\\\\s+/g, '-');\\n}\\n\\nfunction truncate(text, max) {\\n  if (text.length <= max) return text;\\n  return text.slice(0, max - 1) + '…';\\n}\\n\\nmodule.exports = { slugify, truncate };\\n\",\"total_lines\":13}\n\n[Étape 4/12 — 8 restantes] · modifiés: src/strings.js · lus: 1"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"planned\":true}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\nfunction slugify(text) {\\n  return text.trim().toLowerCase().replace(/\\\\s+/g, '-');\\n}\\n\\nmodule.exports = { slugify };\\n\",\"total_lines\":8}",
+          "{\"ok\":true,\"path\":\"src/strings.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\nfunction slugify(text) {\\n  return text.trim().toLowerCase().replace(/\\\\s+/g, '-');\\n}\\n\\nfunction truncate(text, max) {\\n  if (text.length <= max) return text;\\n  return text.slice(0, max - 1) + '…';\\n}\\n\\nmodule.exports = { slugify, truncate };\\n\",\"total_lines\":13}"
+        ],
+        "durationMs": 33
+      },
+      "error": null
+    },
+    {
+      "id": "verify-nudge",
+      "category": "probe",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "nudge de vérification émis",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "nudge tests émis",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "finish sans preuve relancé une fois",
+          "ok": true,
+          "detail": "steps=3 rejects=1"
+        }
+      ],
+      "metrics": {
+        "steps": 3,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "src/math.js",
+        "ragPaths": [
+          "src/math.js",
+          "tests/math.test.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "1656855f",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 1,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 1/12 — 11 restantes] · modifiés: src/math.js(non relu)",
+          "TERMINAISON SANS PREUVE : aucune vérification déclarée alors que 1 fichier(s) ont été modifiés (src/math.js).\nRappelle finish en listant les vérifications réelles, par exemple :\n{\"tool\":\"finish\",\"args\":{\"summary\":\"…\",\"checks\":[{\"kind\":\"file\",\"path\":\"src/fichier.js\"},{\"kind\":\"test\",\"command\":\"npm test\",\"result\":\"pass\",\"count\":12}]}}"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"path\":\"src/math.js\"}"
+        ],
+        "durationMs": 42
+      },
+      "error": null
+    },
+    {
+      "id": "finish-proof",
+      "category": "security",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée avec preuve",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "finish sans preuve refusé une fois",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "résumé final conservé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "pas de boucle de relance",
+          "ok": true,
+          "detail": "3 étapes"
+        }
+      ],
+      "metrics": {
+        "steps": 3,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "99982973",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 1,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 1/12 — 11 restantes] · modifiés: src/math.js(non relu)",
+          "TERMINAISON SANS PREUVE : aucune vérification déclarée alors que 1 fichier(s) ont été modifiés (src/math.js).\nRappelle finish en listant les vérifications réelles, par exemple :\n{\"tool\":\"finish\",\"args\":{\"summary\":\"…\",\"checks\":[{\"kind\":\"file\",\"path\":\"src/fichier.js\"},{\"kind\":\"test\",\"command\":\"npm test\",\"result\":\"pass\",\"count\":12}]}}"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"path\":\"src/math.js\"}"
+        ],
+        "durationMs": 50
+      },
+      "error": null
+    },
+    {
+      "id": "compaction-state",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fenêtre glissante activée",
+          "ok": true,
+          "detail": "15 étapes"
+        },
+        {
+          "name": "état de tâche injecté à la compaction",
+          "ok": true,
+          "detail": "2"
+        },
+        {
+          "name": "état nomme le fichier lu",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "rappel compact dans le compteur d'étapes",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 15,
+        "systemChars": 16768,
+        "contextChars": 1386,
+        "ragFirst": "README.md",
+        "ragPaths": [
+          "README.md",
+          "src/cart.js",
+          "src/format.js",
+          "src/strings.js"
+        ],
+        "promptHash": "0c5f6ea8",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 2,
+        "stateText": "[Note système : 6 message(s) anciens omis pour économiser le contexte. Utilise l'état ci-dessous plutôt que de tout relire.]\n\nÉTAT DE LA TÂCHE (reconstruit automatiquement — ne relis pas ce qui est déjà listé)\nFichiers lus  : src/cart.js\n[Note système : 8 message(s) anciens omis pour économiser le contexte. Utilise l'état ci-dessous plutôt que de tout relire.]\n\nÉTAT DE LA TÂCHE (reconstruit automatiquement — ne relis pas ce qui est déjà listé)\nFichiers lus  : src/cart.js",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 1–4 / 20 total — src/cart.js]\\n'use strict';\\n\\nconst { slugify } = require('./strings');\\n\",\"total_lines\":20,\"start_line\":1,\"end_line\":4}\n\n[Étape 1/18 — 17 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 2–5 / 20 total — src/cart.js]\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\",\"total_lines\":20,\"start_line\":2,\"end_line\":5}\n\n[Étape 2/18 — 16 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 3–6 / 20 total — src/cart.js]\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\",\"total_lines\":20,\"start_line\":3,\"end_line\":6}\n\n[Étape 3/18 — 15 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 4–7 / 20 total — src/cart.js]\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\",\"total_lines\":20,\"start_line\":4,\"end_line\":7}\n\n[Étape 4/18 — 14 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 5–8 / 20 total — src/cart.js]\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\",\"total_lines\":20,\"start_line\":5,\"end_line\":8}\n\n[Étape 5/18 — 13 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 6–9 / 20 total — src/cart.js]\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\",\"total_lines\":20,\"start_line\":6,\"end_line\":9}\n\n[Étape 6/18 — 12 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 7–10 / 20 total — src/cart.js]\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\",\"total_lines\":20,\"start_line\":7,\"end_line\":10}\n\n[Étape 7/18 — 11 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 8–11 / 20 total — src/cart.js]\\n];\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\",\"total_lines\":20,\"start_line\":8,\"end_line\":11}\n\n[Étape 8/18 — 10 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 9–12 / 20 total — src/cart.js]\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\",\"total_lines\":20,\"start_line\":9,\"end_line\":12}\n\n[Étape 9/18 — 9 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 10–13 / 20 total — src/cart.js]\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\",\"total_lines\":20,\"start_line\":10,\"end_line\":13}\n\n[Étape 10/18 — 8 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 11–14 / 20 total — src/cart.js]\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\\nfunction describeCart(items) {\",\"total_lines\":20,\"start_line\":11,\"end_line\":14}\n\n[Étape 11/18 — 7 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 12–15 / 20 total — src/cart.js]\\n}\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\",\"total_lines\":20,\"start_line\":12,\"end_line\":15}\n\n[Étape 12/18 — 6 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 13–16 / 20 total — src/cart.js]\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\",\"total_lines\":20,\"start_line\":13,\"end_line\":16}\n\n[Étape 13/18 — ⚠️ 5 étapes restantes — prévois le finish] · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 14–17 / 20 total — src/cart.js]\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\\n}\",\"total_lines\":20,\"start_line\":14,\"end_line\":17}\n\n[Étape 14/18 — ⚠️ 4 étapes restantes — prévois le finish] · lus: 1"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 2
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"content\":\"[Lignes 1–4 / 20 total — src/cart.js]\\n'use strict';\\n\\nconst { slugify } = require('./strings');\\n\",\"total_lines\":20,\"start_line\":1,\"end_line\":4}",
+          "{\"ok\":true,\"content\":\"[Lignes 2–5 / 20 total — src/cart.js]\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\",\"total_lines\":20,\"start_line\":2,\"end_line\":5}",
+          "{\"ok\":true,\"content\":\"[Lignes 3–6 / 20 total — src/cart.js]\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\",\"total_lines\":20,\"start_line\":3,\"end_line\":6}",
+          "{\"ok\":true,\"content\":\"[Lignes 4–7 / 20 total — src/cart.js]\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\",\"total_lines\":20,\"start_line\":4,\"end_line\":7}",
+          "{\"ok\":true,\"content\":\"[Lignes 5–8 / 20 total — src/cart.js]\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\",\"total_lines\":20,\"start_line\":5,\"end_line\":8}",
+          "{\"ok\":true,\"content\":\"[Lignes 6–9 / 20 total — src/cart.js]\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\",\"total_lines\":20,\"start_line\":6,\"end_line\":9}",
+          "{\"ok\":true,\"content\":\"[Lignes 7–10 / 20 total — src/cart.js]\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\",\"total_lines\":20,\"start_line\":7,\"end_line\":10}",
+          "{\"ok\":true,\"content\":\"[Lignes 8–11 / 20 total — src/cart.js]\\n];\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\",\"total_lines\":20,\"start_line\":8,\"end_line\":11}",
+          "{\"ok\":true,\"content\":\"[Lignes 9–12 / 20 total — src/cart.js]\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\",\"total_lines\":20,\"start_line\":9,\"end_line\":12}",
+          "{\"ok\":true,\"content\":\"[Lignes 10–13 / 20 total — src/cart.js]\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\",\"total_lines\":20,\"start_line\":10,\"end_line\":13}",
+          "{\"ok\":true,\"content\":\"[Lignes 11–14 / 20 total — src/cart.js]\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\\nfunction describeCart(items) {\",\"total_lines\":20,\"start_line\":11,\"end_line\":14}",
+          "{\"ok\":true,\"content\":\"[Lignes 12–15 / 20 total — src/cart.js]\\n}\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\",\"total_lines\":20,\"start_line\":12,\"end_line\":15}",
+          "{\"ok\":true,\"content\":\"[Lignes 13–16 / 20 total — src/cart.js]\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\",\"total_lines\":20,\"start_line\":13,\"end_line\":16}",
+          "{\"ok\":true,\"content\":\"[Lignes 14–17 / 20 total — src/cart.js]\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\\n}\",\"total_lines\":20,\"start_line\":14,\"end_line\":17}"
+        ],
+        "durationMs": 58
+      },
+      "error": null
+    },
+    {
+      "id": "context-rag",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "extraits RAG injectés",
+          "ok": true,
+          "detail": "4 extrait(s)"
+        },
+        {
+          "name": "fichier pertinent dans les 2 premiers extraits",
+          "ok": true,
+          "detail": "src/format.js > src/cart.js > README.md > src/strings.js"
+        },
+        {
+          "name": "vecteurs comparables (dimension fixe, non nuls)",
+          "ok": true,
+          "detail": "256/256"
+        },
+        {
+          "name": "symbole présent dans le prompt système",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 1,
+        "systemChars": 16768,
+        "contextChars": 1386,
+        "ragFirst": "src/format.js",
+        "ragPaths": [
+          "src/format.js",
+          "src/cart.js",
+          "README.md",
+          "src/strings.js"
+        ],
+        "promptHash": "0506a944",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [],
+        "durationMs": 29
+      },
+      "error": null
+    },
+    {
+      "id": "truncation",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "première lecture tronquée",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "lecture paginée possible",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "total de lignes annoncé",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 3,
+        "systemChars": 23814,
+        "contextChars": 8432,
+        "ragFirst": "src/large.js",
+        "ragPaths": [
+          "src/large.js",
+          "src/large.js",
+          "src/large.js",
+          "src/large.js"
+        ],
+        "promptHash": "043e0b5c",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 1,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Fichier volumineux de test : sert uniquement à mesurer la troncature des lectures.\\n// Chaque fonction est indépendante ; ce fichier ne doit jamais être modifié par un eval.\\n\\nfunction step001(value) { return value + 1; }\\nfunction step002(value) { return value + 2; }\\nfunction step003(value) { return value + 3; }\\nfunction step004(value) { ret",
+          "Résultat : {\"ok\":true,\"content\":\"[Lignes 175–185 / 212 total — src/large.js]\\nfunction step170(value) { return value + 170; }\\nfunction step171(value) { return value + 171; }\\nfunction step172(value) { return value + 172; }\\nfunction step173(value) { return value + 173; }\\nfunction step174(value) { return value + 174; }\\n// MARKER-180\\nfunction step176(value) { return value + 176; }\\nfunction step"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Fichier volumineux de test : sert uniquement à mesurer la troncature des lectures.\\n// Chaque fonction est indépendante ; ce fichier ne doit jamais être modifié par un eval.\\n\\nfunction step001(value) { return value + 1; }\\nfunction step002(value) { return value + 2; }\\nfunction step003(value) { return value + 3; }\\nfunction step004(value) { return value + 4; }\\nfunction step005(value) { return value + 5; }\\nfunction step006(value) { return value + 6; }\\nfunction step007(value) { return value + 7; }\\nfunction step008(value) { return value + 8; }\\nfunction step009(value) { return value + 9; }\\nfunction step010(value) { return value + 10; }\\nfunction step011(value) { return value + 11; }\\nfunction step012(value) { return value + 12; }\\nfunction step013(value) { return value + 13; }\\nfunction step014(value) { return value + 14; }\\nfunction step015(value) { return value + 15; }\\nfunction step016(value) { return value + 16; }\\nfunction step017(value) { return value + 17; }\\nfunction step018(value) { return value + 18; }\\nfunction step019(value) { return value + 19; }\\nfunction step020(value) { return value + 20; }\\nfunction step021(value) { return value + 21; }\\nfunction step022(value) { return value + 22; }\\nfunction step023(value) { return value + 23; }\\nfunction step024(value) { return value + 24; }\\nfunction step025(value) { return value + 25; }\\nfunction step026(value) { return value + 26; }\\nfunction step027(value) { return value + 27; }\\nfunction step028(value) { return value + 28; }\\nfunction step029(value) { return value + 29; }\\nfunction step030(value) { return value + 30; }\\nfunction step031(value) { return value + 31; }\\nfunction step032(value) { return value + 32; }\\nfunction step033(value) { return value + 33; }\\nfunction step034(value) { return value + 34; }\\nfunction step035(value) { return value + 35; }\\nfunction step036(value) { return value + 36; }\\nfunction step037(value) { return value + 37; }\\nfunction step038(value) { return value + 38; }\\nfunction step039(value) { return value + 39; }\\nfunction step040(value) { return value + 40; }\\nfunction step041(value) { return value + 41; }\\nfunction step042(value) { return value + 42; }\\nfunction step043(value) { return value + 43; }\\nfunction step044(value) { return value + 44; }\\nfunction step045(value) { return value + 45; }\\nfunction step046(value) { return value + 46; }\\nfunction step047(value) { return value + 47; }\\nfunction step048(value) { return value + 48; }\\nfunction step049(value) { return value + 49; }\\nfunction step050(value) { return value + 50; }\\nfunction step051(value) { return value + 51; }\\nfunction step052(value) { return value + 52; }\\nfunction step053(value) { return value + 53; }\\nfunction step054(value) { return value + 54; }\\nfunction step055(value) { return value + 55; }\\nfunction step056(value) { return value + 56; }\\nfunction step057(value) { return value + 57; }\\nfunction step058(value) { return value + 58; }\\nfunction step059(value) { return value + 59; }\\nfunction step060(value) { return value + 60; }\\nfunction step061(value) { return value + 61; }\\nfunction step062(value) { return value + 62; }\\nfunction step063(value) { return value + 63; }\\nfunction step064(value) { return value + 64; }\\nfunction step065(value) { return value + 65; }\\nfunction step066(value) { return value + 66; }\\nfunction step067(value) { return value + 67; }\\nfunction step068(value) { return value + 68; }\\nfunction step069(value) { return value + 69; }\\nfunction step070(value) { return value + 70; }\\nfunction step071(value) { return value + 71; }\\nfunction step072(value) { return value + 72; }\\nfunction step073(value) { return value + 73; }\\nfunction step074(value) { return value + 74; }\\nfunction step075(value) { return value + 75; }\\nfunction step076(value) { return value + 76; }\\nfunction step077(value) { return value + 77; }\\nfunction step078(value) { return value + 78; }\\nfunction step079(value) { return value + 79; }\\nfunction step080(value) { return value + 80; }\\nfunction step081(value) { return value + 81; }\\nfunction step082(value) { return value + 82; }\\nfunction step083(value) { return value + 83; }\\nfunction step084(value) { return value + 84; }\\nfunction step085(value) { return value + 85; }\\nfunction step086(value) { return value + 86; }\\nfunction step087(value) { return value + 87; }\\nfunction step088(value) { return value + 88; }\\nfunction step089(value) { return value + 89; }\\nfunction step090(value) { return value + 90; }\\nfunction step091(value) { return value + 91; }\\nfunction step092(value) { return value + 92; }\\nfunction step093(value) { return value + 93; }\\nfunction step094(value) { return value + 94; }\\nfunction step095(value) { return value + 95; }\\nfunction step096(value) { return value + 96; }\\nfunction step097(value) { return value + 97; }\\nfunction step098(value) { return value + 98; }\\nfunction step099(value) { return value + 99; }\\nfunction step100(value) { return value + 100; }\\nfunction step101(value) { return value + 101; }\\nfunction step102(value) { return value + 102; }\\nfunction step103(value) { return value + 103; }\\nfunction step104(value) { return value + 104; }\\nfunction step105(value) { return value + 105; }\\nfunction step106(value) { return value + 106; }\\nfunction step107(value) { return value + 107; }\\nfunction step108(value) { return value + 108; }\\nfunction step109(value) { return value + 109; }\\nfunction step110(value) { return value + 110; }\\nfunction step111(value) { return value + 111; }\\nfunction step112(value) { return value + 112; }\\nfunction step113(value) { return value + 113; }\\nfunction step114(value) { return value + 114; }\\nfunction step115(value) { return value + 115; }\\nfunction step116(value) { return value + 116; }\\nfunction step117(value) { return value + 117; }\\nfunction step118(value) { return value + 118; }\\nfunction step119(value) { return value + 119; }\\nfunction step120(value) { return value + 120; }\\nfunction step121(value) { return value + 121; }\\nfunction step122(value) { return value + 122; }\\nfunction step123(value) { return value + 123; }\\nfunction step124(value) { return value + 124; }\\nfunction step125(value) { return value + 125; }\\nfunction step126(value) { return value + 126; }\\nfunction step127(value) { return value + 127; }\\nfunction step128(value) { return value + 128; }\\nfunction step129(value) { return value + 129; }\\nfunction step130(value) { return value + 130; }\\nfunction step131(value) { return value + 131; }\\nfunction step132(value) { return value + 132; }\\nfunction step133(value) { return value + 133; }\\nfunction step134(value) { return value + 134; }\\nfunction step135(value) { return value + 135; }\\nfunction step136(value) { return value + 136; }\\nfunction step137(value) { return value + 137; }\\nfunction step138(value) { return value + 138; }\\nfunction step139(value) { return value + 139; }\\nfunction step140(value) { return value + 140; }\\nfunction step141(value) { return value + 141; }\\nfunction step142(value) { return value + 142; }\\nfunction step143(value) { return value + 143; }\\nfunction step144(value) { return value + 144; }\\nfunction step145(value) { return value + 145; }\\nfunction step146(value) { return value + 146; }\\nfunction step147(value) { return value + 147; }\\nfunction step148(value) { return value + 148; }\\nfunction step149(value) { return value + 149; }\\nfunction step150(value) { return value + 150; }\\nfunction step151(value) { return value + 151; }\\nfunction step152(value) { return value + 152; }\\nfunction step153(value) { return value + 153; }\\nfunction step154(value) { return value + 154; }\\nfunction step155(value) { return value + 155; }\\nfunction step156(value) { return value + 156; }\\nfunction step157(value) { return value + 157; }\\nfunction step158(value) { return value + 158; }\\nfunction step159(value) { return value + 159; }\\nfunction step160(value) { return value + 160; }\\nfunction step161(value) { return value + 161; }\\nfunction step162(value) { return value + 162; }\\nfunction step163(value) { return value + 163; }\\nfunction step164(value) { return value + 164; }\\nfunction step165(value) { return value + 165; }\\nfunction step166(value) { return value + 166; }\\nfunction step167(value) { return value + 167; }\\nfunction step168(value) { return value + 168; }\\nfunction step169(value) { return value + 169; }\\nfunction step170(value) { return value + 170; }\\nfunction step171(value) { return value + 171; }\\nfunction step172(value) { return value + 172; }\\nfunction step173(value) { return value + 173; }\\nfunction step174(value) { return value + 174; }\\n// MARKER-180\\nfunction step176(value) { return value + 176; }\\nfunction step177(value) { return value + 177; }\\nfunction step178(value) { return value + 178; }\\nfunction step179(value) { return value + 179; }\\nfunction step180(value) { return value + 180; }\\nfunction step181(value) { return value + 181; }\\nfunction step182(value) { return value + 182; }\\nfunction step183(value) { return value + 183; }\\nfunction step184(value) { return value + 184; }\\nfunction step185(value) { return value + 185; }\\nfunction step186(value) { return value + 186; }\\nfunction step187(value) { return value + 187; }\\nfunction step188(value) { return value + 188; }\\nfunction step189(value) { return value + 189; }\\nfunction step190(value) { return value + 190; }\\nfunction step191(value) { return value + 191; }\\nfunction step192(value) { return value + 192; }\\nfunction step193(value) { return value + 193; }\\nfunction step194(value) { return value + 194; }\\nfunction step195(value) { return value + 195; }\\nfunction step196(value) { return value + 196; }\\nfunction step197(value) { return value + 197; }\\nfunction step198(value) { return value + 198; }\\nfunction step199(value) { return value + 199; }\\nfunction step200(value) { return value + 200; }\\nfunction step201(value) { return value + 201; }\\nfunction step202(value) { return value + 202; }\\nfunction step203(value) { return value + 203; }\\nfunction step204(value) { return value + 204; }\\nfunction step205(value) { return value + 205; }\\nfunction step206(value) { return value + 206; }\\n\",\"total_lines\":212}",
+          "{\"ok\":true,\"content\":\"[Lignes 175–185 / 212 total — src/large.js]\\nfunction step170(value) { return value + 170; }\\nfunction step171(value) { return value + 171; }\\nfunction step172(value) { return value + 172; }\\nfunction step173(value) { return value + 173; }\\nfunction step174(value) { return value + 174; }\\n// MARKER-180\\nfunction step176(value) { return value + 176; }\\nfunction step177(value) { return value + 177; }\\nfunction step178(value) { return value + 178; }\\nfunction step179(value) { return value + 179; }\\nfunction step180(value) { return value + 180; }\",\"total_lines\":212,\"start_line\":175,\"end_line\":185}"
+        ],
+        "durationMs": 181
+      },
+      "error": null
+    },
+    {
+      "id": "tool-selection",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "famille navigateur chargée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "famille média non chargée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "outils de base toujours présents",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "outil inventé guidé vers les familles",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 2,
+        "systemChars": 20015,
+        "contextChars": 1386,
+        "ragFirst": "README.md",
+        "ragPaths": [
+          "README.md",
+          "src/cart.js",
+          "src/format.js",
+          "src/strings.js"
+        ],
+        "promptHash": "bb951094",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "OUTIL_INCONNU: browser_launch — familles disponibles : edition (delete_file, move_file, batch_replace…) · recherche (find_symbol, find_relevant_files, git_status…) · web (read_url, web_search, call_api) · navigateur (browser_open, browser_navigate, browser_screenshot…)"
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Erreur outil : OUTIL_INCONNU: browser_launch — familles disponibles : edition (delete_file, move_file, batch_replace…) · recherche (find_symbol, find_relevant_files, git_status…) · web (read_url, web_search, call_api) · navigateur (browser_open, browser_navigate, browser_screenshot…)\n\n[Étape 1/12 — 11 restantes] · dernier échec: browser_launch (OUTIL_INCONNU)"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":false,\"error\":\"OUTIL_INCONNU: browser_launch — familles disponibles : edition (delete_file, move_file, batch_replace…) · recherche (find_symbol, find_relevant_files, git_status…) · web (read_url, web_search, call_api) · navigateur (browser_open, browser_navigate, browser_screenshot…)\"}"
+        ],
+        "durationMs": 89
+      },
+      "error": null
+    },
+    {
+      "id": "context-budget",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "arborescence conservée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "extraits RAG conservés",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "troncature signalée au modèle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "budget respecté (≤ 4 200 car. de contexte)",
+          "ok": true,
+          "detail": "2795 car."
+        }
+      ],
+      "metrics": {
+        "steps": 1,
+        "systemChars": 18177,
+        "contextChars": 2795,
+        "ragFirst": "src/large.js",
+        "ragPaths": [
+          "src/large.js"
+        ],
+        "promptHash": "36684e2e",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [],
+        "durationMs": 185
+      },
+      "error": null
+    },
+    {
+      "id": "arg-validation",
+      "category": "security",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "argument manquant nommé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "exemple fourni au modèle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appel corrigé accepté",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 3,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "99982973",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "ARGUMENT_MANQUANT: \"path\" — read_file attend {\"path\":\"src/app.js\"}"
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Erreur outil : ARGUMENT_MANQUANT: \"path\" — read_file attend {\"path\":\"src/app.js\"}\n\n[Étape 1/12 — 11 restantes] · dernier échec: read_file (ARGUMENT_MANQUANT)",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 2/12 — 10 restantes] · lus: 1 · dernier échec: read_file "
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":false,\"error\":\"ARGUMENT_MANQUANT: \\\"path\\\" — read_file attend {\\\"path\\\":\\\"src/app.js\\\"}\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}"
+        ],
+        "durationMs": 101
+      },
+      "error": null
+    },
+    {
+      "id": "plan-revision",
+      "category": "nominal",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "deux plans émis (initial + révisé)",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "second plan marqué révisé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "troisième plan refusé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fichier corrigé",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "budget tenu (≤ 8 étapes)",
+          "ok": true,
+          "detail": "7 étapes"
+        }
+      ],
+      "metrics": {
+        "steps": 7,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "README.md",
+          "src/math.js",
+          "package.json"
+        ],
+        "promptHash": "8d7aa7e2",
+        "toolErrors": 1,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [
+          "PLAN_DEJA_RÉVISÉ — un seul plan révisé est autorisé ; passe aux modifications ou termine avec finish."
+        ],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"planned\":true}\n\n[Étape 1/12 — 11 restantes]",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 2/12 — 10 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"planned\":true}\n\n[Étape 3/12 — 9 restantes] · lus: 1",
+          "Erreur outil : PLAN_DEJA_RÉVISÉ — un seul plan révisé est autorisé ; passe aux modifications ou termine avec finish.\n\n[Étape 4/12 — 8 restantes] · lus: 1 · dernier échec: plan (PLAN_DEJA_RÉVISÉ — un seul p)",
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 5/12 — 7 restantes] · modifiés: src/math.js(non relu) · lus: 1 · dernier échec: plan (PLAN_DEJA_RÉVISÉ — un seul p)",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 6/12 — 6 restantes] · modifiés: src/math.js · lus: 1 · der"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"planned\":true}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}",
+          "{\"ok\":true,\"planned\":true}",
+          "{\"ok\":false,\"error\":\"PLAN_DEJA_RÉVISÉ — un seul plan révisé est autorisé ; passe aux modifications ou termine avec finish.\"}",
+          "{\"ok\":true,\"path\":\"src/math.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}"
+        ],
+        "durationMs": 100
+      },
+      "error": null
+    },
+    {
+      "id": "prompt-profile",
+      "category": "context",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "sections optionnelles retirées",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "règles essentielles conservées",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "prompt allégé (< 14 500 car. avec contexte)",
+          "ok": true,
+          "detail": "12235 car."
+        }
+      ],
+      "metrics": {
+        "steps": 4,
+        "systemChars": 12235,
+        "contextChars": 1107,
+        "ragFirst": "tests/math.test.js",
+        "ragPaths": [
+          "tests/math.test.js",
+          "src/math.js",
+          "package.json",
+          "README.md"
+        ],
+        "promptHash": "306ca0f7",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 1/12 — 11 restantes] · lus: 1",
+          "Résultat : {\"ok\":true,\"path\":\"src/math.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/math.js\" } avant toute autre action.\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.\n\n[Étape 2/12 — 10 restantes] · modifiés: src/math.js(non relu) · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}\n\n[Étape 3/12 — 9 restantes] · modifiés: src/math.js · lus: 1"
+        ],
+        "nudges": {
+          "verification": 1,
+          "tests": 1,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i <= arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}",
+          "{\"ok\":true,\"path\":\"src/math.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\n// Somme d'un tableau de nombres.\\nfunction sum(arr) {\\n  let total = 0;\\n  for (let i = 0; i < arr.length; i++) {\\n    total += arr[i];\\n  }\\n  return total;\\n}\\n\\nfunction average(arr) {\\n  return sum(arr) / arr.length;\\n}\\n\\nmodule.exports = { sum, average };\\n\",\"total_lines\":17}"
+        ],
+        "durationMs": 82
+      },
+      "error": null
+    },
+    {
+      "id": "budget-stop",
+      "category": "budget",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "arrêt sur budget, pas de crash",
+          "ok": true,
+          "detail": "MAX_STEPS_ATTEINT"
+        },
+        {
+          "name": "trace complète",
+          "ok": true,
+          "detail": "6 étapes"
+        },
+        {
+          "name": "avertissement précoce émis",
+          "ok": true,
+          "detail": "2"
+        },
+        {
+          "name": "consigne URGENT émise",
+          "ok": true,
+          "detail": "3"
+        }
+      ],
+      "metrics": {
+        "steps": 6,
+        "systemChars": 16489,
+        "contextChars": 1107,
+        "ragFirst": "README.md",
+        "ragPaths": [
+          "README.md",
+          "package.json",
+          "src/math.js",
+          "tests/math.test.js"
+        ],
+        "promptHash": "ca0c687e",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}\n\n[Étape 1/6 — ⚠️ 5 étapes restantes — prévois le finish]",
+          "Résultat : {\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}\n\n[Étape 2/6 — ⚠️ 4 étapes restantes — prévois le finish]",
+          "Résultat : {\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}\n\nURGENT : il te reste 3 étape(s). Tu DOIS appeler finish maintenant avec ce que tu sais.",
+          "Résultat : {\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}\n\nURGENT : il te reste 2 étape(s). Tu DOIS appeler finish maintenant avec ce que tu sais.",
+          "Résultat : {\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}\n\nURGENT : il te reste 1 étape(s). Tu DOIS appeler finish maintenant avec ce que tu sais."
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 3,
+          "remaining": 2
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}",
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}",
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}",
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}",
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}",
+          "{\"ok\":true,\"path\":\".\",\"items\":[{\"name\":\"package.json\",\"type\":\"file\"},{\"name\":\"README.md\",\"type\":\"file\"},{\"name\":\"src\",\"type\":\"dir\"},{\"name\":\"tests\",\"type\":\"dir\"}]}"
+        ],
+        "durationMs": 33
+      },
+      "error": "MAX_STEPS_ATTEINT"
+    },
+    {
+      "id": "ambiguity",
+      "category": "recovery",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "question posée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "réponse transmise au modèle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aucune écriture avant clarification",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 2,
+        "systemChars": 16768,
+        "contextChars": 1386,
+        "ragFirst": "README.md",
+        "ragPaths": [
+          "README.md",
+          "src/cart.js",
+          "src/format.js",
+          "src/strings.js"
+        ],
+        "promptHash": "0c5f6ea8",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"answer\":\"La lisibilité\"}\n\n[Étape 1/12 — 11 restantes]"
+        ],
+        "nudges": {
+          "verification": 0,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"answer\":\"La lisibilité\"}"
+        ],
+        "durationMs": 22
+      },
+      "error": null
+    },
+    {
+      "id": "multi-file",
+      "category": "nominal",
+      "ok": true,
+      "knownIssue": null,
+      "checks": [
+        {
+          "name": "tâche terminée",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "arrondi appliqué",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "format à la française",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "budget tenu (≤ 10 étapes)",
+          "ok": true,
+          "detail": "7 étapes"
+        },
+        {
+          "name": "aucune erreur d'outil",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "metrics": {
+        "steps": 7,
+        "systemChars": 16768,
+        "contextChars": 1386,
+        "ragFirst": "README.md",
+        "ragPaths": [
+          "README.md",
+          "src/cart.js",
+          "src/format.js",
+          "src/strings.js"
+        ],
+        "promptHash": "0c5f6ea8",
+        "toolErrors": 0,
+        "parseErrors": 0,
+        "finishRejections": 0,
+        "errors": [],
+        "truncatedResults": 0,
+        "stateBlocks": 0,
+        "stateText": "",
+        "stepTexts": [
+          "Résultat : {\"ok\":true,\"planned\":true}\n\n[Étape 1/12 — 11 restantes]",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(it",
+          "Résultat : {\"ok\":true,\"path\":\"src/cart.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/cart.js\" } avant toute autre action.\n\n[Étape 3/12 — 9 restantes] · modifiés: src/cart.js(non relu) · lus: 1",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\nfunction formatMoney(value, currency = '€') {\\n  return `${Number(value).toFixed(2)} ${currency}`;\\n}\\n\\nfunction padLabel(label, width = 20) {\\n  return label.length >= width ? label.slice(0, width) : label.padEnd(width, '.');\\n}\\n\\nmodule.exports = { formatMoney, padLabel };\\n\",\"total_lines\":12}\n\n[Étape 4/12 — 8 restantes] · modifiés: src/cart.js",
+          "Résultat : {\"ok\":true,\"path\":\"src/format.js\"}\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { \"path\": \"src/format.js\" } avant toute autre action.\n\n[Étape 5/12 — 7 restantes] · modifiés: src/cart.js(non relu), src/format.js(non relu) · lus: 2",
+          "Résultat : {\"ok\":true,\"content\":\"'use strict';\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\\n  const raw = items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n  return Math.round(raw * 100) / 100;\\n}\\n\\nfunction describeCa"
+        ],
+        "nudges": {
+          "verification": 2,
+          "tests": 0,
+          "relire": 0,
+          "urgent": 0,
+          "remaining": 0
+        },
+        "resultTexts": [
+          "{\"ok\":true,\"planned\":true}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\\n  return items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n}\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\\n}\\n\\nmodule.exports = { CART, computeTotal, describeCart, slugify };\\n\",\"total_lines\":20}",
+          "{\"ok\":true,\"path\":\"src/cart.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\nfunction formatMoney(value, currency = '€') {\\n  return `${Number(value).toFixed(2)} ${currency}`;\\n}\\n\\nfunction padLabel(label, width = 20) {\\n  return label.length >= width ? label.slice(0, width) : label.padEnd(width, '.');\\n}\\n\\nmodule.exports = { formatMoney, padLabel };\\n\",\"total_lines\":12}",
+          "{\"ok\":true,\"path\":\"src/format.js\"}",
+          "{\"ok\":true,\"content\":\"'use strict';\\n\\nconst { slugify } = require('./strings');\\n\\nconst CART = [\\n  { sku: 'A-1', label: 'Clavier', unit: 49.9, qty: 2 },\\n  { sku: 'B-7', label: 'Souris', unit: 19.5, qty: 1 },\\n];\\n\\nfunction computeTotal(items) {\\n  const raw = items.reduce((acc, item) => acc + item.unit * item.qty, 0);\\n  return Math.round(raw * 100) / 100;\\n}\\n\\nfunction describeCart(items) {\\n  const total = computeTotal(items);\\n  return `${items.length} article(s) — ${total.toFixed(2)} €`;\\n}\\n\\nmodule.exports = { CART, computeTotal, describeCart, slugify };\\n\",\"total_lines\":21}"
+        ],
+        "durationMs": 123
+      },
+      "error": null
+    }
+  ]
+}

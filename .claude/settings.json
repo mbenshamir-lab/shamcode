@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install*)",
+      "Bash(npm start*)",
+      "Bash(npm test*)",
+      "Bash(npm run*)",
+      "Bash(node --test*)",
+      "Bash(node -e*)",
+      "Bash(electron .*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git add src/*)",
+      "Bash(git add tests/*)",
+      "Bash(git add package*)",
+      "Bash(git add CLAUDE.md)",
+      "Bash(git add PASSATION.md)",
+      "Bash(git commit*)",
+      "Bash(git init*)",
+      "Bash(npx electron-builder*)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)"
+    ]
+  }
+}
