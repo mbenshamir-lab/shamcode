@@ -23,7 +23,7 @@ __pycache__/
 # Données runtime (sessions, backups, RAG, feedback)
 sessions/
 backups/
-rag/
+/rag/
 .harness/
 
 # Fichiers de travail locaux (sorties de tests, logs, notes)
