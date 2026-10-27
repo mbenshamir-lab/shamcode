@@ -58,6 +58,14 @@ function _createWebLlmBridge(hiddenWin) {
   };
 }
 
+// La fenêtre visible peut être fermée pendant qu'une tâche, un ping ou un
+// événement de progression est encore en vol : webContents.send lèverait
+// « Object has been destroyed » dans le main process (boîte d'erreur fatale).
+function _sendVisible(win, channel, payload) {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+  win.webContents.send(channel, payload);
+}
+
 /**
  * Enregistre tous les handlers IPC.
  * Point d'entrée unique pour toute la communication inter-process.
@@ -69,7 +77,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
 
   // ── AppsManager : registre des apps connectées ──────────────────────────────
   const appsManager = new AppsManager((apps) => {
-    visibleWin.webContents.send(APPS_IPC.UPDATE, apps);
+    _sendVisible(visibleWin, APPS_IPC.UPDATE, apps);
   });
   appsManager.startPeriodicPing();
 
@@ -83,7 +91,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   ipcMain.handle(APPS_IPC.PING,     async ()           => { await appsManager.pingAll(); return { ok: true }; });
 
   // ── ProcessRunner : processus en arrière-plan ────────────────────────────────
-  const _procUpdateCb = (procs) => { visibleWin.webContents.send(PROCS_IPC.UPDATE, procs); };
+  const _procUpdateCb = (procs) => { _sendVisible(visibleWin, PROCS_IPC.UPDATE, procs); };
   addProcListener(_procUpdateCb);
   ipcMain.handle(PROCS_IPC.LIST, () => ({ ok: true, processes: listAllProcs() }));
 
@@ -98,12 +106,12 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   // LLM prêt (hidden → main → visible + mise à jour bridge)
   ipcMain.on(IPC.LLM_READY, (_, payload) => {
     webLlmBridge._onReady(payload.ready === true, payload.error || null);
-    visibleWin.webContents.send(IPC.LLM_STATUS, payload);
+    _sendVisible(visibleWin, IPC.LLM_STATUS, payload);
   });
 
   // Progression chargement modèle
   ipcMain.on(IPC.LLM_PROGRESS, (_, payload) => {
-    visibleWin.webContents.send(IPC.LLM_STATUS, { type: 'progress', ...payload });
+    _sendVisible(visibleWin, IPC.LLM_STATUS, { type: 'progress', ...payload });
   });
 
   // Vider le cache disque du modèle WebLLM (déclenché depuis la fenêtre Paramètres)
@@ -156,7 +164,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
       ? (preview) => new Promise((resolve) => {
           const id = crypto.randomUUID();
           _pendingApprovals.set(id, resolve);
-          visibleWin.webContents.send(IPC.WRITE_PENDING, { ...preview, id });
+          _sendVisible(visibleWin, IPC.WRITE_PENDING, { ...preview, id });
         })
       : null;
 
@@ -165,7 +173,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
       ? (plan) => new Promise((resolve) => {
           const id = crypto.randomUUID();
           _pendingApprovals.set(id, resolve);
-          visibleWin.webContents.send(IPC.PLAN_PENDING, { ...plan, id });
+          _sendVisible(visibleWin, IPC.PLAN_PENDING, { ...plan, id });
         })
       : null;
 
@@ -177,7 +185,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
     const requestUserInput = (payload) => new Promise((resolve) => {
       const id = crypto.randomUUID();
       _pendingApprovals.set(id, resolve);
-      visibleWin.webContents.send(IPC.ASK_USER_PENDING, { ...payload, id });
+      _sendVisible(visibleWin, IPC.ASK_USER_PENDING, { ...payload, id });
     });
 
     // Budget de contexte adapté au moteur qui consomme le prompt :
@@ -220,7 +228,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
         signal,
         llmGenerate: (msgs, opts) => router.generate(msgs, opts),
         onEvent: (event) => {
-          visibleWin.webContents.send(IPC.AGENT_EVENT, event);
+          _sendVisible(visibleWin, IPC.AGENT_EVENT, event);
           if (event.type === 'app_connected' && event.url) {
             appsManager.register(event.url);
           }
@@ -499,7 +507,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
         llmGenerate: (msgs, opts) => router.generate(msgs, opts),
         onEvent: (ev) => {
           if (!visibleWin.isDestroyed())
-            visibleWin.webContents.send(IPC.AGENT_EVENT, { ...ev, scheduledTaskId: scheduledTask.id });
+            _sendVisible(visibleWin, IPC.AGENT_EVENT, { ...ev, scheduledTaskId: scheduledTask.id });
         },
       });
       scheduledTask.lastRun = Date.now();

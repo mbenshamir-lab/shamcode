@@ -69,6 +69,10 @@ function createWindows(_config) {
   visibleWin.loadFile(path.join(__dirname, '..', 'renderer-visible', 'index.html'));
   hiddenWin.loadFile(path.join(__dirname, '..', 'renderer-hidden', 'llm.html'));
 
+  // La fenêtre cachée (moteur LLM) empêche `window-all-closed` : sans ça, fermer la
+  // fenêtre visible laissait l'app vivante et ses événements IPC visaient une fenêtre détruite.
+  visibleWin.on('closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
   // L'interface est une application, pas un onglet : aucun raccourci navigateur.
   // En développement on laisse F12 / Ctrl+Shift+I pour pouvoir déboguer.
   attachShortcutGuard(visibleWin, { allowDevTools: !app.isPackaged });
