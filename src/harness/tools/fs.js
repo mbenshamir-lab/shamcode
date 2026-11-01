@@ -155,8 +155,10 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
     const hasCrlf = raw.includes('\r\n');
 
     if (countExact === 1) {
-      const updated = raw.replace(old_string, new_string);
-      final = updated !== raw ? updated : norm.replace(oldN, normLf(new_string));
+      // Remplacement par fonction : dans une chaîne, `$'` ou `$&` seraient interprétés
+      // et dupliqueraient une partie du fichier.
+      const updated = raw.replace(old_string, () => new_string);
+      final = updated !== raw ? updated : norm.replace(oldN, () => normLf(new_string));
     } else {
       // ── Fallback fuzzy : normalise aussi les espaces en fin de ligne ────────
       const normF = normFuzzy(raw);
@@ -180,7 +182,7 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
         return { ok: false, error: 'BLOC_INTROUVABLE', hint };
       }
       if (countFuzzy > 1)   return { ok: false, error: 'BLOC_AMBIGU' };
-      final = normF.replace(oldF, normLf(new_string));
+      final = normF.replace(oldF, () => normLf(new_string));
       fuzzy = true;
     }
 

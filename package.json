@@ -18,6 +18,7 @@
     "build:win:dir": "electron-builder --win --dir --config electron-builder.yml",
     "test": "node --test tests/*.test.js",
     "eval": "node tests/eval/run.js",
+    "bench": "node tests/bench/run.js",
     "lint": "eslint src/main src/harness src/shared tests",
     "lint:fix": "eslint src/main src/harness src/shared tests --fix",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",

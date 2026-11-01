@@ -1,3 +1,28 @@
+/** Coupe du premier { au dernier } — null s'il n'y a pas d'objet. */
+function _sliceObject(text) {
+  const braceStart = text.indexOf('{');
+  const braceEnd   = text.lastIndexOf('}');
+  if (braceStart === -1 || braceEnd === -1) return null;
+  return text.slice(braceStart, braceEnd + 1);
+}
+
+/**
+ * Répare ce que les petits modèles émettent mal : virgules traînantes hors chaînes,
+ * retours à la ligne et tabulations littéraux dans les chaînes.
+ * Les chaînes sont reconnues d'abord : une virgule d'un `content` est du code à écrire.
+ */
+function _repairJson(text) {
+  return text.replace(/("(?:[^"\\]|\\[\s\S])*")|,(\s*[}\]])/g, (match, str, closing) => (
+    str
+      ? str.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+      : closing
+  ));
+}
+
+function _isObject(value) {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Extrait un tool call JSON de la réponse brute du LLM.
  * Tolérant : fences markdown, texte avant/après, virgules traînantes.
@@ -8,38 +33,31 @@
 function extractToolCall(rawText) {
   if (!rawText || typeof rawText !== 'string') return { error: 'VIDE' };
 
-  let text = rawText.trim();
+  const text = rawText.trim();
 
-  // 1. Extraire depuis les fences markdown ```json...``` ou ```...```
-  // Greedy sur l'ensemble puis on retire les délimiteurs pour gérer les fences imbriquées.
+  // Candidats du plus fidèle au plus spéculatif. La fence vient après le découpage par
+  // accolades : un `content` contenant ``` ne doit pas être pris pour une fence englobante.
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*)```/);
-  if (fenceMatch) text = fenceMatch[1].trim();
+  const candidates = [text, _sliceObject(text), fenceMatch && _sliceObject(fenceMatch[1].trim())]
+    .filter(Boolean);
+  if (!_sliceObject(text)) return { error: 'JSON_INTROUVABLE' };
 
-  // 2. Extraire le premier objet JSON (de { jusqu'au dernier })
-  const braceStart = text.indexOf('{');
-  const braceEnd   = text.lastIndexOf('}');
-  if (braceStart === -1 || braceEnd === -1) return { error: 'JSON_INTROUVABLE' };
-  text = text.slice(braceStart, braceEnd + 1);
-
-  // 3. Réparer les virgules traînantes avant } ou ]
-  text = text.replace(/,(\s*[}\]])/g, '$1');
-
-  // 3.5 Réparer les retours à la ligne / tabulations littéraux dans les valeurs de chaîne.
-  // Les petits modèles (< 3B) émettent parfois de vrais \n à l'intérieur des strings JSON,
-  // ce qui rend le JSON invalide. On échappe uniquement à l'intérieur des guillemets.
-  text = text.replace(/("(?:[^"\\]|\\[\s\S])*")/g,
-    s => s.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
-  );
-
-  // 4. Parser
+  // Un JSON valide passe sans réparation, sinon celle-ci pourrait altérer son contenu.
   let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    return { error: `JSON_INVALIDE: ${e.message}` };
+  let lastError = null;
+  for (const transform of [s => s, _repairJson]) {
+    for (const candidate of candidates) {
+      try {
+        const value = JSON.parse(transform(candidate));
+        if (_isObject(value)) { parsed = value; break; }
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (parsed) break;
   }
+  if (!parsed) return { error: lastError ? `JSON_INVALIDE: ${lastError.message}` : 'JSON_NON_OBJET' };
 
-  if (typeof parsed !== 'object' || parsed === null) return { error: 'JSON_NON_OBJET' };
   if (!parsed.tool || typeof parsed.tool !== 'string') return { error: 'OUTIL_MANQUANT' };
   if (typeof parsed.args !== 'object' || parsed.args === null) parsed.args = {};
 

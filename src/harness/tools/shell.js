@@ -1,4 +1,5 @@
-const { execSync } = require('child_process');
+const { runCommand } = require('./run-command');
+const { _keepEnds }  = require('./test-runner');
 
 const SHELL_TIMEOUT = 60000; // 60s max
 const MAX_OUTPUT    = 12000; // caractères max retournés
@@ -38,20 +39,17 @@ async function runShell(args, projectRoot, config) {
     return { ok: false, error: `COMMANDE_BLOQUÉE (destructrice): ${args.command.slice(0, 80)}` };
   }
 
-  try {
-    const raw = execSync(args.command, {
-      cwd:      projectRoot,
-      timeout:  SHELL_TIMEOUT,
-      encoding: 'utf8',
-      shell:    true,
-    });
-    const stdout = (raw || '').slice(0, MAX_OUTPUT);
-    return { ok: true, stdout, truncated: raw.length > MAX_OUTPUT };
-  } catch (e) {
-    const stdout = (e.stdout || '').slice(0, MAX_OUTPUT);
-    const stderr = (e.stderr || e.message || '').slice(0, 500);
-    return { ok: false, error: stderr, stdout, code: e.status ?? -1 };
+  const run = await runCommand(args.command, { cwd: projectRoot, timeout: SHELL_TIMEOUT, signal: config._signal });
+  if (run.aborted) return { ok: false, error: 'ANNULÉ' };
+
+  const stdout = _keepEnds(run.stdout, MAX_OUTPUT);
+  if (run.code === 0 && !run.timedOut) {
+    return { ok: true, stdout, truncated: run.stdout.length > MAX_OUTPUT };
   }
+  const error = run.timedOut
+    ? `COMMANDE_DÉLAI_DÉPASSÉ (${SHELL_TIMEOUT / 1000}s) — utilise start_process pour une commande longue`
+    : (run.stderr || run.message).slice(0, 500);
+  return { ok: false, error, stdout, code: run.code };
 }
 
 module.exports = { runShell };

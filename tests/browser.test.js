@@ -665,11 +665,12 @@ describe('agent.js — outils browser dans toolNames', () => {
     assert.ok(src.includes('disposeBrowser'));
   });
 
-  it('disposeBrowser appelé aux 3 points de sortie', () => {
+  it('disposeBrowser appelé aux points de sortie via _cleanup', () => {
     const src = require('fs').readFileSync(
       require.resolve('../src/harness/agent.js'), 'utf8'
     );
-    const count = (src.match(/disposeBrowser\(\)/g) || []).length;
-    assert.ok(count >= 3, `disposeBrowser() trouvé ${count} fois, attendu ≥ 3`);
+    assert.ok(src.includes('disposeBrowser()'));
+    const count = (src.match(/_cleanup\(\)/g) || []).length;
+    assert.ok(count >= 3, `_cleanup() trouvé ${count} fois, attendu ≥ 3`);
   });
 });

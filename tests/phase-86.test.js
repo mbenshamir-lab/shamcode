@@ -137,11 +137,12 @@ test('agent — descriptions lsp dans allToolDefs', () => {
   assert.ok(src.includes('lsp_references'),  'description lsp_references absente');
 });
 
-test('agent — disposeLsp appelé aux 4 points de sortie', () => {
+test('agent — disposeLsp appelé aux 5 points de sortie via _cleanup', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/harness/agent.js'), 'utf8');
   assert.ok(src.includes("require('./tools/lsp')"), 'import disposeLsp absent');
-  const count = (src.match(/disposeLsp\(\)/g) || []).length;
-  assert.equal(count, 4, `disposeLsp() appelé ${count} fois, attendu 4`);
+  assert.ok(src.includes('disposeLsp()'), 'disposeLsp absent de _cleanup');
+  const count = (src.match(/_cleanup\(\)/g) || []).length;
+  assert.equal(count, 5, `_cleanup() appelé ${count} fois, attendu 5`);
 });
 
 // ── 7. Settings HTML ─────────────────────────────────────────────────────────

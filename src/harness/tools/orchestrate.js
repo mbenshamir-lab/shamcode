@@ -5,7 +5,7 @@
 
 const { PROFILES } = require('../agents/profiles');
 const { createSharedBus } = require('./message-bus');
-const { _buildSubContext } = require('./spawn');
+const { _buildSubContext, _subResult } = require('./spawn');
 
 const MAX_PHASES = 6;
 const MAX_AGENTS_PER_PHASE = 4;
@@ -91,7 +91,7 @@ async function _runOne({ role, task }, phaseIndex, config, onEvent, projectRoot,
     });
     const files = [...modifiedFiles];
     onEvent({ type: 'sub_agent_done', role, label: profile.label, color: profile.color, result, modifiedFiles: files, phase: phaseIndex });
-    return { ok: true, role, summary: result.summary || 'Sous-tâche terminée.', modifiedFiles: files };
+    return _subResult(role, result, files);
   } catch (err) {
     const result = { ok: false, error: err.message };
     onEvent({ type: 'sub_agent_done', role, label: profile.label, color: profile.color, result, modifiedFiles: [], phase: phaseIndex });
@@ -182,6 +182,7 @@ async function orchestrate({ objective, phases } = {}, config, onEvent, projectR
 
   return {
     ok: allOk,
+    ...(allOk ? {} : { error: 'ORCHESTRATION_ÉCHOUÉE' }),
     objective,
     executedPhases: previous.length,
     totalPhases: phases.length,
