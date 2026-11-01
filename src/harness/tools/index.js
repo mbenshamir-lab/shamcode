@@ -106,7 +106,7 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.PROJECT_NOTE:
       return projectNote(args, guard, projectRoot);
     case TOOLS.RUN_TESTS:
-      return runTests(args, projectRoot);
+      return runTests(args, projectRoot, { signal: config._signal });
     case TOOLS.GET_PROJECT_INFO:
       return getProjectInfo(args, projectRoot);
     case TOOLS.RESTORE_FILE:

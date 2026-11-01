@@ -10,6 +10,25 @@
  *   const text = await router.generate(messages);
  */
 
+// Pannes passagères : un quota ou une surcharge se résout en quelques secondes, alors
+// qu'une 400 ou une 401 échouera à l'identique et doit passer au moteur suivant.
+const TRANSIENT_ERROR = /_HTTP_(429|500|502|503|504|529)\b|fetch failed|ECONNRESET|ETIMEDOUT/;
+const RETRY_DELAYS_MS = [1000, 3000];
+const MAX_RETRY_AFTER_MS = 30000; // au-delà, mieux vaut basculer que figer la tâche
+
+/** Attente interrompue par le Stop de l'utilisateur. */
+function _sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new Error('ANNULÉ')); return; }
+    const onAbort = () => { clearTimeout(timer); reject(new Error('ANNULÉ')); };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 class LlmRouter {
   /**
    * @param {string[]} chain      - Noms des moteurs dans l'ordre de priorité
@@ -23,6 +42,22 @@ class LlmRouter {
     this.config    = config;
     this.bridges   = bridges;
     this._instances = {};
+    this._sleep     = _sleep;
+  }
+
+  /** Génère avec un moteur, en réessayant sur panne passagère. */
+  async _generateWithRetry(inst, messages, options) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await inst.generate(messages, options);
+      } catch (err) {
+        const delay = err.retryAfter ? err.retryAfter * 1000 : RETRY_DELAYS_MS[attempt];
+        const retry = attempt < RETRY_DELAYS_MS.length && delay <= MAX_RETRY_AFTER_MS
+          && TRANSIENT_ERROR.test(err.message) && !options.signal?.aborted;
+        if (!retry) throw err;
+        await this._sleep(delay, options.signal);
+      }
+    }
   }
 
   /** Obtient (ou crée) l'instance d'un moteur. */
@@ -65,8 +100,10 @@ class LlmRouter {
         const wrappedOpts = options.onUsage
           ? { ...options, onUsage: (u) => options.onUsage({ ...u, engine: name }) }
           : options;
-        return await inst.generate(messages, wrappedOpts);
+        return await this._generateWithRetry(inst, messages, wrappedOpts);
       } catch (err) {
+        // Stop utilisateur : ce n'est pas une panne, le moteur suivant ne doit pas repartir
+        if (options.signal?.aborted || err.name === 'AbortError' || err.message === 'ANNULÉ') throw err;
         errors.push(`${name}: ${err.message}`);
       }
     }

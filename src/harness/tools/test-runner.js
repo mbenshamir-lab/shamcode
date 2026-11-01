@@ -4,9 +4,9 @@
  * Disponible sans enableShell — limité aux commandes de test reconnues.
  */
 
-const { execSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
+const { runCommand } = require('./run-command');
 
 const TESTS_TIMEOUT = 30000; // 30s — les suites courtes terminent bien avant
 const MAX_OUTPUT    = 10000; // caractères max retournés au LLM
@@ -59,9 +59,10 @@ function _detectRunner(projectRoot) {
  *
  * @param {{ command?: string }} args
  * @param {string} projectRoot
+ * @param {{ signal?: AbortSignal }} [opts]
  * @returns {{ ok, runner, exitCode, stdout, stderr, passed?, truncated? }}
  */
-async function runTests(args, projectRoot) {
+async function runTests(args, projectRoot, { signal } = {}) {
   if (!projectRoot) return { ok: false, error: 'RUN_TESTS_SANS_PROJET' };
 
   let cmd, runner;
@@ -87,32 +88,39 @@ async function runTests(args, projectRoot) {
     ({ cmd, runner } = detected);
   }
 
-  try {
-    const raw = execSync(cmd, {
-      cwd:      projectRoot,
-      timeout:  TESTS_TIMEOUT,
-      encoding: 'utf8',
-      shell:    true,
-      // Capturer stderr dans stdout pour avoir toute la sortie du runner
-      stdio:    ['ignore', 'pipe', 'pipe'],
-    });
+  const run = await runCommand(cmd, { cwd: projectRoot, timeout: TESTS_TIMEOUT, signal });
+  if (run.aborted) return { ok: false, error: 'ANNULÉ' };
 
-    const stdout = (raw || '').slice(0, MAX_OUTPUT);
+  if (run.code === 0 && !run.timedOut) {
+    const stdout = _keepEnds(run.stdout, MAX_OUTPUT);
     const passed = _inferPassed(stdout, runner);
-    return { ok: true, runner, exitCode: 0, stdout, ...(passed != null ? { passed } : {}), ...(raw.length > MAX_OUTPUT ? { truncated: true } : {}) };
-
-  } catch (e) {
-    const stdout = ((e.stdout || '') + (e.stderr || '')).slice(0, MAX_OUTPUT);
-    const passed = _inferPassed(stdout, runner);
-    return {
-      ok:       false,
-      runner,
-      exitCode: e.status ?? -1,
-      stdout,
-      error:    'TESTS_ÉCHOUÉS',
-      ...(passed != null ? { passed } : {}),
-    };
+    return { ok: true, runner, exitCode: 0, stdout, ...(passed != null ? { passed } : {}), ...(run.stdout.length > MAX_OUTPUT ? { truncated: true } : {}) };
   }
+
+  // stderr rejoint stdout pour avoir toute la sortie du runner
+  const stdout = _keepEnds(run.stdout + run.stderr, MAX_OUTPUT);
+  const passed = _inferPassed(stdout, runner);
+  return {
+    ok:       false,
+    runner,
+    exitCode: run.code,
+    stdout,
+    // Le modèle ne doit pas chercher un bug là où la suite n'a simplement pas fini
+    error:    run.timedOut ? `TESTS_DÉLAI_DÉPASSÉ (${TESTS_TIMEOUT / 1000}s)` : 'TESTS_ÉCHOUÉS',
+    ...(passed != null ? { passed } : {}),
+  };
+}
+
+/**
+ * Coupe au milieu : les runners listent les échecs et le bilan en fin de sortie.
+ * @param {string} text
+ * @param {number} max
+ */
+function _keepEnds(text, max) {
+  if (text.length <= max) return text;
+  const marker = `\n[… ${text.length - max} caractères omis …]\n`;
+  const head = Math.floor((max - marker.length) / 4);
+  return text.slice(0, head) + marker + text.slice(-(max - marker.length - head));
 }
 
 /**
@@ -140,4 +148,4 @@ function _inferPassed(output, runner) {
   return null;
 }
 
-module.exports = { runTests, _detectRunner };
+module.exports = { runTests, _detectRunner, _keepEnds };

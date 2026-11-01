@@ -12,7 +12,7 @@
 const fs      = require('fs');
 const path    = require('path');
 const crypto  = require('crypto');
-const { encode } = require('./embedder');
+const { encode, EMBEDDER_VERSION } = require('./embedder');
 const { getIgnore } = require('../safety/harnessignore');
 
 const CODE_EXTENSIONS = new Set([
@@ -23,11 +23,35 @@ const CODE_EXTENSIONS = new Set([
 
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'target', '__pycache__',
-  '.next', 'out', 'coverage', '.cache',
+  '.next', 'out', 'coverage', '.cache', 'fixtures', '__fixtures__',
 ]);
 
+// Fichiers générés : très volumineux, ils remontent sur n'importe quel nom de paquet
+const IGNORE_FILES = new Set(['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml']);
+
 // Bumper quand l'algorithme de découpage change — force la réindexation des stores existants.
-const CHUNKER_VERSION = 1;
+const CHUNKER_VERSION = 2;
+
+/**
+ * Identifiant du store RAG d'un projet. Inclut les versions : un index écrit avec un
+ * autre encodage donnerait des vecteurs incomparables.
+ * @param {string} projectRoot
+ * @returns {string}
+ */
+function ragStoreId(projectRoot) {
+  return crypto.createHash('sha1')
+    .update(`${projectRoot}|v${EMBEDDER_VERSION}|c${CHUNKER_VERSION}`)
+    .digest('hex').slice(0, 12);
+}
+
+/**
+ * Encode un chunk avec son chemin : le nom d'un fichier dit souvent mieux son rôle que
+ * son contenu, et le nom de base compte davantage que les dossiers.
+ */
+function _encodeChunk(filePath, text) {
+  const base = path.basename(filePath, path.extname(filePath));
+  return encode(`${filePath} ${base} ${base} ${text}`);
+}
 
 const CHUNK_SIZE    = 60;  // lignes max par chunk (sémantique ou fixe)
 const CHUNK_OVERLAP = 15;  // chevauchement pour le fallback fixe seulement
@@ -99,7 +123,7 @@ function chunkFile(filePath, content, hash) {
           endLine:   end,
           content:   text,
           hash,
-          vector:    encode(text),
+          vector:    _encodeChunk(filePath, text),
         });
         if (end >= segEnd) break;
         i = end;  // pas d'overlap au sein d'un segment sémantique : les frontières font séparateur naturel
@@ -120,7 +144,7 @@ function chunkFile(filePath, content, hash) {
       endLine:   end,
       content:   text,
       hash,
-      vector:    encode(text),
+      vector:    _encodeChunk(filePath, text),
     });
     if (end >= lines.length) break;
     start += CHUNK_SIZE - CHUNK_OVERLAP;
@@ -138,6 +162,7 @@ function indexProject(root, store, { onProgress } = {}) {
   let indexed = 0;
   let skipped = 0;
   const ignore = getIgnore(root);
+  const seen = new Set();
 
   function walk(dir) {
     let entries;
@@ -151,7 +176,7 @@ function indexProject(root, store, { onProgress } = {}) {
         continue;
       }
       const ext = path.extname(e.name).toLowerCase();
-      if (!CODE_EXTENSIONS.has(ext)) continue;
+      if (!CODE_EXTENSIONS.has(ext) || IGNORE_FILES.has(e.name)) continue;
 
       let content;
       try { content = fs.readFileSync(fullPath, 'utf8'); }
@@ -161,8 +186,11 @@ function indexProject(root, store, { onProgress } = {}) {
       const relPath = path.relative(root, fullPath).replace(/\\/g, '/');
 
       if (ignore.isIgnored(relPath)) { skipped++; continue; }
+      seen.add(relPath);
       if (store.isUnchanged(relPath, hash)) { skipped++; continue; }
 
+      // Un fichier raccourci laisserait sinon ses anciens chunks de fin dans l'index
+      store.removeFile(relPath);
       const chunks = chunkFile(relPath, content, hash);
       for (const c of chunks) store.upsert(c);
       indexed++;
@@ -171,7 +199,13 @@ function indexProject(root, store, { onProgress } = {}) {
   }
 
   walk(root);
+
+  // Fichier supprimé ou désormais ignoré : son contenu ne doit plus être proposé au modèle
+  for (const relPath of store.paths()) {
+    if (!seen.has(relPath)) store.removeFile(relPath);
+  }
+
   return { indexed, skipped };
 }
 
-module.exports = { indexProject, chunkFile, _findBoundaries, CHUNKER_VERSION };
+module.exports = { indexProject, chunkFile, ragStoreId, _findBoundaries, CHUNKER_VERSION };

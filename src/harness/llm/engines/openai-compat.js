@@ -3,8 +3,19 @@
 // POST {baseUrl}/chat/completions avec Authorization: Bearer {apiKey}
 // Supporte le streaming SSE si options.onToken est fourni.
 
-const { LlmEngine } = require('../base');
+const { LlmEngine, httpError } = require('../base');
 const { DEFAULT_TEMPERATURE } = require('../../../shared/constants');
+
+/** Convertit les blocs multimodaux internes au format attendu par chat/completions. */
+function _toOpenAiMessage(message) {
+  if (!Array.isArray(message.content)) return message;
+  return {
+    ...message,
+    content: message.content.map(b => (b.type === 'image'
+      ? { type: 'image_url', image_url: { url: `data:${b.mimeType};base64,${b.base64}` } }
+      : { type: 'text', text: b.text ?? String(b) })),
+  };
+}
 
 class OpenAiCompatEngine extends LlmEngine {
   /**
@@ -31,7 +42,7 @@ class OpenAiCompatEngine extends LlmEngine {
 
     const payload = {
       model:       this.model,
-      messages,
+      messages:    messages.map(_toOpenAiMessage),
       temperature: options.temperature ?? DEFAULT_TEMPERATURE,
       stream:      streaming,
     };
@@ -48,20 +59,19 @@ class OpenAiCompatEngine extends LlmEngine {
       signal: options.signal,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`OPENAI_COMPAT_HTTP_${res.status}: ${err.slice(0, 200)}`);
-    }
+    if (!res.ok) throw await httpError('OPENAI_COMPAT', res);
 
     // ── Mode non-streaming ──────────────────────────────────────────────────
     if (!streaming) {
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content;
       if (!text) throw new Error('OPENAI_COMPAT_EMPTY_RESPONSE');
-      if (options.onUsage && data.usage) {
+      const truncated = data.choices[0].finish_reason === 'length';
+      if (options.onUsage && (data.usage || truncated)) {
         options.onUsage({
-          inputTokens:  data.usage.prompt_tokens     || 0,
-          outputTokens: data.usage.completion_tokens || 0,
+          inputTokens:  data.usage?.prompt_tokens     || 0,
+          outputTokens: data.usage?.completion_tokens || 0,
+          truncated,
         });
       }
       return text;
@@ -73,6 +83,7 @@ class OpenAiCompatEngine extends LlmEngine {
     let fullText  = '';
     let buffer    = '';
     let streamUsage = null;
+    let finishReason = null;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -92,6 +103,7 @@ class OpenAiCompatEngine extends LlmEngine {
           const token = json?.choices?.[0]?.delta?.content;
           if (token) { fullText += token; options.onToken(token); }
           if (json?.usage) streamUsage = json.usage; // dernier chunk avec usage
+          if (json?.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
         } catch { /* ligne SSE mal formée — ignorée */ }
       }
     }
@@ -101,6 +113,7 @@ class OpenAiCompatEngine extends LlmEngine {
       options.onUsage({
         inputTokens:  streamUsage?.prompt_tokens     || 0,
         outputTokens: streamUsage?.completion_tokens || Math.ceil(fullText.length / 4),
+        truncated:    finishReason === 'length',
       });
     }
     return fullText;

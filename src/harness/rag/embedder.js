@@ -13,7 +13,7 @@
  */
 
 // Une version par changement de format — entre dans l'identifiant du store RAG.
-const EMBEDDER_VERSION = 3;
+const EMBEDDER_VERSION = 4;
 
 // Compromis taille/qualité : 256 seaux limitent les collisions de hachage tout en
 // gardant un vecteur compact dans le JSON du store (les chunks se comptent en milliers).
@@ -48,9 +48,12 @@ const STOP_WORDS = new Set([
  * @returns {string[]}
  */
 function tokenize(text) {
+  // Identifiants découpés (camelCase, snake_case) : une tâche dit « parse », le code
+  // dit extractToolCall ou maxParseRetries, et ces mots ne se rencontraient jamais.
   return text
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
-    .replace(/[^a-z0-9_À-ɏ]/g, ' ')
+    .replace(/[^a-z0-9À-ɏ]/g, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 3 && !STOP_WORDS.has(w));
 }

@@ -8,6 +8,27 @@ const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
 
+const { lexicalScores } = require('./lexical');
+
+const SHORT_CHUNK_CHARS = 400; // sous cette taille, le score d'un extrait est atténué
+const LEXICAL_WEIGHT    = 0.8; // les termes exacts priment sur des vecteurs à collisions
+const TEST_WEIGHT       = 0.6;
+const DOC_WEIGHT        = 0.4;
+const TEST_PATH  = /(^|\/)(tests?|spec|__tests__)\/|\.(test|spec)\.[a-z]+$/i;
+const TEST_TERMS = new Set(['test', 'tests', 'spec', 'specs']);
+const DOC_TERMS  = new Set(['doc', 'docs', 'documentation', 'readme', 'guide']);
+
+/**
+ * Tests et documentation citent le vocabulaire de la tâche plus souvent que le code qu'il
+ * faut modifier : sans ce poids, ils évincent la source, sauf s'ils sont le sujet demandé.
+ */
+function _kindWeight(filePath, terms) {
+  const wanted = terms || [];
+  if (TEST_PATH.test(filePath)) return wanted.some(t => TEST_TERMS.has(t)) ? 1 : TEST_WEIGHT;
+  if (/\.(md|txt)$/i.test(filePath)) return wanted.some(t => DOC_TERMS.has(t)) ? 1 : DOC_WEIGHT;
+  return 1;
+}
+
 function getRagDir() {
   const base = process.env.APPDATA || path.join(os.homedir(), '.config');
   return path.join(base, 'code-harness', 'rag');
@@ -48,6 +69,21 @@ function createStore(storeId) {
     },
 
     /**
+     * Retire tous les chunks d'un fichier (sans persistance immédiate).
+     * @param {string} filePath
+     */
+    removeFile(filePath) {
+      for (const [id, chunk] of Object.entries(data.chunks)) {
+        if (chunk.path === filePath) delete data.chunks[id];
+      }
+    },
+
+    /** @returns {Set<string>} chemins des fichiers indexés */
+    paths() {
+      return new Set(Object.values(data.chunks).map(c => c.path));
+    },
+
+    /**
      * Persiste le store sur disque.
      * À appeler explicitement après une séquence d'upsert().
      */
@@ -74,12 +110,13 @@ function createStore(storeId) {
 
     /**
      * Recherche les top-k chunks les plus proches d'un vecteur de requête.
-     * Similarité cosinus.
+     * Similarité cosinus, combinée au score lexical quand les termes sont fournis.
      * @param {number[]} queryVector
      * @param {number}   topK
+     * @param {string[]} [terms]  termes de la requête
      * @returns {object[]}
      */
-    search(queryVector, topK = 5) {
+    search(queryVector, topK = 5, terms = null) {
       const chunks = Object.values(data.chunks).filter(c => c.vector);
       if (chunks.length === 0) return [];
 
@@ -99,10 +136,15 @@ function createStore(storeId) {
         weights[i] = Math.log(1 + n / (df.get(i) || 1));
       }
 
-      const scored = chunks.map(c => ({
-        ...c,
-        score: cosineSim(queryVector, c.vector, weights),
-      }));
+      // Un vecteur normalisé avantage les très courts extraits : un seul mot commun y pèse
+      // lourd, et trois lignes d'une fixture devançaient le fichier qui contient la réponse.
+      const lexical = terms ? lexicalScores(chunks, terms) : null;
+      const scored = chunks.map((c, i) => {
+        const cosine = cosineSim(queryVector, c.vector, weights);
+        const base = lexical ? LEXICAL_WEIGHT * lexical[i] + (1 - LEXICAL_WEIGHT) * cosine : cosine;
+        const shortness = Math.sqrt(Math.min(1, c.content.length / SHORT_CHUNK_CHARS));
+        return { ...c, score: base * shortness * _kindWeight(c.path, terms) };
+      });
 
       return scored
         .sort((a, b) => b.score - a.score)

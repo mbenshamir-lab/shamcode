@@ -23,8 +23,7 @@ const { resolvePersona }        = require('./prompts/personas');
 const { detectLanguage, getLangRules } = require('./prompts/by-language');
 const { buildContext }          = require('./context/builder');
 const { createStore }       = require('./rag/store');
-const { EMBEDDER_VERSION }  = require('./rag/embedder');
-const { indexProject, CHUNKER_VERSION } = require('./rag/indexer');
+const { indexProject, ragStoreId } = require('./rag/indexer');
 const { createSession, updateSession, applyRetention } = require('./memory/sessions');
 const { createScratchpad }  = require('./memory/scratchpad');
 const {
@@ -33,7 +32,7 @@ const {
   MAX_RESULT_CHARS = 6000, WINDOW_KEEP_PAIRS = 10, WINDOW_THRESHOLD = 26,
 } = require('../shared/constants');
 const { disposeBrowser }    = require('./tools/browser');
-const { _detectRunner }     = require('./tools/test-runner');
+const { _detectRunner, _keepEnds } = require('./tools/test-runner');
 const { disposeLsp }        = require('./tools/lsp');
 const { recordFeedback, loadFeedback } = require('./feedback/store');
 const { buildFeedbackSummary }         = require('./feedback/advisor');
@@ -113,6 +112,21 @@ function _truncateResult(result) {
   const kept = s.slice(0, MAX_RESULT_CHARS);
   const omitted = s.length - MAX_RESULT_CHARS;
   return kept + `\n[… tronqué — ${omitted} caractères omis]`;
+}
+
+/**
+ * Message d'échec d'un outil. Le code d'erreur seul ne dit pas quoi corriger : la sortie
+ * des tests, le hint de replace_code ou le détail des sous-agents doivent atteindre le modèle.
+ */
+function _failureMessage(result) {
+  const { ok: _ok, error, hint, stdout, ...rest } = result;
+  const details = [
+    hint,
+    stdout && `Sortie :\n${stdout}`,
+    Object.keys(rest).length > 0 && JSON.stringify(rest),
+  ].filter(Boolean).join('\n\n');
+  const message = `Erreur outil : ${error}`;
+  return details ? `${message}\n\n${_keepEnds(details, MAX_RESULT_CHARS)}` : message;
 }
 
 /**
@@ -319,6 +333,14 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const mcpRegistry = new McpRegistry();
   const _mcpLog = msg => onEvent({ type: 'mcp_status', msg });
   await mcpRegistry.init(config.connectors ?? [], _mcpLog);
+  // Navigateur et LSP sont des singletons de processus : un sous-agent qui se termine
+  // ne doit pas les fermer sous les yeux de son parent ou d'un sous-agent parallèle.
+  const _cleanup = () => {
+    mcpRegistry.dispose();
+    if (isSubAgent) return;
+    disposeBrowser().catch(() => {});
+    disposeLsp().catch(() => {});
+  };
   // Ajouter les outils MCP découverts à availableTools (visibles dans le prompt système)
   for (const desc of mcpRegistry.toolDescriptions) {
     availableTools.push(desc);
@@ -362,10 +384,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Construire le contexte RAG (indexation incrémentale + retrieval)
   let projectContext = '';
   try {
-    const storeId  = crypto.createHash('sha1')
-      .update(`${projectRoot}|v${EMBEDDER_VERSION}|c${CHUNKER_VERSION}`)
-      .digest('hex').slice(0, 12);
-    const ragStore = createStore(storeId);
+    const ragStore = createStore(ragStoreId(projectRoot));
     indexProject(projectRoot, ragStore);
     ragStore.flush(); // persistance unique après indexation complète
     projectContext = await buildContext({ task, projectRoot, ragStore, maxChars: config.contextBudget ?? config.maxContextChars ?? MAX_CONTEXT_CHARS });
@@ -410,6 +429,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Cache intra-session : évite de réinjecter le contenu d'un fichier déjà lu.
   // La clé inclut la plage de lignes : sans elle, une relecture paginée du même fichier
   // renverrait « déjà lu » et la fin d'un fichier tronqué resterait inaccessible.
+  // Valeur : { step, hash } — le hash détecte les modifications faites hors des outils
+  // d'écriture (shell, formateur, sous-agent, utilisateur).
   const _readCache = new Map();
   const _readCacheKey = (args) => `${args.path}|${args.start_line ?? ''}|${args.end_line ?? ''}`;
   const _invalidateReadCache = (filePath) => {
@@ -456,10 +477,35 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // `finish` est déclaratif : rien n'oblige le modèle à dire ce qu'il a vérifié.
   // Quand des fichiers ont été modifiés, on exige un `checks` qui les couvre ou un
   // test passé — avec une seule relance, pour ne pas changer un oubli en boucle.
+  // `checks` reste une déclaration : seule la trace atteste la relecture ou le test.
   let _finishNudgeSent = false;
+  const modTools = new Set([TOOLS.WRITE_FILE, TOOLS.REPLACE_CODE, TOOLS.DELETE_FILE, TOOLS.MOVE_FILE]);
+
+  const _normPath = (p) => path.posix.normalize(String(p).replace(/\\/g, '/'));
+
+  const _modEntries = () => trace.filter(entry => modTools.has(entry.tool) && entry.result?.ok);
+
+  const _fileProven = (filePath) => {
+    const target = _normPath(filePath);
+    const last = _modEntries().filter(e =>
+      _normPath(e.args?.path) === target ||
+      (e.tool === TOOLS.MOVE_FILE && _normPath(e.args?.dest) === target)).pop();
+    if (!last) return false;
+    // Un fichier supprimé ou déplacé ne peut plus être relu à ce chemin
+    if (last.tool === TOOLS.DELETE_FILE) return true;
+    if (last.tool === TOOLS.MOVE_FILE && _normPath(last.args?.path) === target) return true;
+    return trace.some(e => e.tool === TOOLS.READ_FILE && e.result?.ok && e.step > last.step &&
+      _normPath(e.args?.path) === target);
+  };
+
+  const _testProven = (check) => {
+    const lastMod = Math.max(0, ..._modEntries().map(e => e.step));
+    return trace.some(e => e.step > lastMod && e.result?.ok && (
+      e.tool === TOOLS.RUN_TESTS || e.tool === TOOLS.FIX_LOOP ||
+      (e.tool === TOOLS.RUN_SHELL && e.args?.command === check.command)));
+  };
 
   const _modifiedPaths = () => {
-    const modTools = new Set([TOOLS.WRITE_FILE, TOOLS.REPLACE_CODE, TOOLS.DELETE_FILE, TOOLS.MOVE_FILE]);
     const paths = new Set();
     for (const entry of trace) {
       if (!modTools.has(entry.tool) || !entry.result?.ok) continue;
@@ -490,12 +536,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       return { ok: false, reason: 'une vérification est incomplète (kind + path ou command attendus)' };
     }
 
-    const coversFile = checks.some(c => c.kind === 'file' && modified.includes(String(c.path)));
-    const passedTest = checks.some(c => c.kind === 'test' && String(c.result || '').toLowerCase() === 'pass');
+    const coversFile = checks.some(c => c.kind === 'file' && _fileProven(c.path));
+    const passedTest = checks.some(c => c.kind === 'test' && String(c.result || '').toLowerCase() === 'pass' && _testProven(c));
     if (!coversFile && !passedTest) {
       return {
         ok: false,
-        reason: `les vérifications ne couvrent pas les fichiers modifiés (${modified.slice(0, 3).join(', ')}) : cite-les avec "kind": "file", ou déclare un test passé`,
+        reason: `aucune vérification déclarée n'a eu lieu après la dernière modification (${modified.slice(0, 3).join(', ')}) : relis ces fichiers avec read_file ou lance run_tests, puis déclare-le`,
       };
     }
     return { ok: true };
@@ -503,6 +549,13 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Compteur de tokens cumulés sur la session
   let _sessionIn  = 0;
   let _sessionOut = 0;
+  // Le moteur a coupé la dernière réponse à sa limite de tokens
+  let _lastResponseCut = false;
+
+  /** Consigne de reprise après une réponse illisible. */
+  const _formatFeedback = (error) => (_lastResponseCut
+    ? 'Réponse coupée par la limite de tokens : le JSON est incomplet. Ne renvoie pas le même contenu : crée le fichier avec un write_file court, puis complète-le avec des replace_code successifs.'
+    : `Format invalide (${error}). Réponds uniquement avec un JSON valide :\n{"tool": "<nom>", "args": { ... }}`);
 
   onEvent({ type: 'session_start', sessionId: session.id });
 
@@ -518,12 +571,15 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     const onToken = config.streaming === false
       ? undefined
       : (token) => onEvent({ type: 'llm_token', token });
+    _lastResponseCut = false;
     const onUsage = (usage) => {
       _sessionIn  += usage.inputTokens  || 0;
       _sessionOut += usage.outputTokens || 0;
+      _lastResponseCut = !!usage.truncated;
       onEvent({ type: 'llm_usage', step: currentStep,
         inputTokens: usage.inputTokens  || 0,
         outputTokens: usage.outputTokens || 0,
+        cachedTokens: usage.cachedTokens || 0,
         engine: usage.engine || 'unknown',
         totalIn: _sessionIn, totalOut: _sessionOut,
       });
@@ -545,6 +601,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     return llmGenerate(windowed, {
       temperature: config.temperature ?? DEFAULT_TEMPERATURE,
       topP:        config.topP ?? 1,
+      jsonMode:    true,
       onToken,
       onUsage,
       signal,
@@ -554,9 +611,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   for (let step = 1; step <= maxSteps; step++) {
     // ── Abort ────────────────────────────────────────────────────────────────
     if (signal?.aborted) {
-      mcpRegistry.dispose();
-      disposeBrowser().catch(() => {});
-      disposeLsp().catch(() => {});
+      _cleanup();
       const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
       if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
       onEvent({ type: 'cancelled' });
@@ -575,25 +630,23 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       } catch (err) {
         // AbortError ou message 'ANNULÉ' = l'utilisateur a cliqué Stop
         if (signal?.aborted || err.name === 'AbortError' || err.message === 'ANNULÉ') {
-          mcpRegistry.dispose();
-          disposeBrowser().catch(() => {});
-          disposeLsp().catch(() => {});
+          _cleanup();
           const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
           if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
           onEvent({ type: 'cancelled' });
           return cancelled;
         }
-        return { ok: false, error: `LLM_ERREUR: ${err.message}`, trace };
+        _cleanup();
+        const failed = { ok: false, error: `LLM_ERREUR: ${err.message}`, trace, sessionId: session.id };
+        if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: failed, scratchpad: scratchpad.toJSON() });
+        return failed;
       }
       parsed = extractToolCall(rawText);
       if (!parsed.error) break;
       if (attempt >= maxParseRetries) break;   // plus de reprise : traité ci-dessous
       // Renvoyer la sortie fautive + la consigne de format, puis régénérer.
       messages.push({ role: 'assistant', content: rawText });
-      messages.push({
-        role: 'user',
-        content: `Format invalide (${parsed.error}). Réponds uniquement avec un JSON valide :\n{"tool": "<nom>", "args": { ... }}`,
-      });
+      messages.push({ role: 'user', content: _formatFeedback(parsed.error) });
       trace.push({ step, error: parsed.error, attempt: attempt + 1 });
       onEvent({ type: 'parse_error', step, error: parsed.error, attempt: attempt + 1 });
     }
@@ -602,10 +655,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (parsed.error) {
       // Guider le LLM avec un message d'erreur explicite
       messages.push({ role: 'assistant', content: rawText });
-      messages.push({
-        role: 'user',
-        content: `Format invalide (${parsed.error}). Réponds uniquement avec un JSON valide :\n{"tool": "<nom>", "args": { ... }}`,
-      });
+      messages.push({ role: 'user', content: _formatFeedback(parsed.error) });
       trace.push({ step, error: parsed.error });
       onEvent({ type: 'parse_error', step, error: parsed.error });
 
@@ -633,11 +683,13 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         });
         continue;
       }
+      // Fin acceptée après la relance : on ne bloque pas, mais l'utilisateur doit le savoir
+      if (!proof.ok) {
+        onEvent({ type: 'note_user', level: 'warn', message: `Tâche terminée sans preuve de vérification : ${proof.reason}.` });
+      }
       onEvent({ type: 'finish', summary });
-      mcpRegistry.dispose();
-      disposeBrowser().catch(() => {});
-      disposeLsp().catch(() => {});
-      const result = { ok: true, summary, trace, sessionId: session.id };
+      _cleanup();
+      const result = { ok: true, summary, trace, sessionId: session.id, ...(proof.ok ? {} : { unverified: true }) };
       if (!isSubAgent) updateSession(sessionPath, { steps: trace, result, scratchpad: scratchpad.toJSON() });
       return result;
     }
@@ -666,18 +718,19 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
     try {
       // Cache read_file : réutilise le résultat seulement si le message portant ce
-      // résultat est encore dans la fenêtre glissante. Sinon on relit le fichier.
+      // résultat est encore dans la fenêtre glissante et que le fichier n'a pas changé.
       if (parsed.tool === TOOLS.READ_FILE && parsed.args?.path) {
-        const cacheKey  = _readCacheKey(parsed.args);
-        const cachedAt  = _readCache.get(cacheKey);
-        const tailStart = _windowTailStart(messages.length, windowOpts); // étape à partir de laquelle la tail commence
-        const inWindow  = cachedAt != null && cachedAt > tailStart;
-        if (inWindow) {
-          result = { ok: true, content: `[déjà lu à l'étape ${cachedAt} — contenu identique]` };
-        } else {
-          if (cachedAt != null) _readCache.delete(cacheKey); // expiré de la fenêtre
-          result = await dispatch(parsed.tool, parsed.args, guard, config, onEvent, projectRoot, mcpRegistry);
-          if (result.ok) _readCache.set(cacheKey, step);
+        result = await dispatch(parsed.tool, parsed.args, guard, config, onEvent, projectRoot, mcpRegistry);
+        if (result.ok) {
+          const cacheKey  = _readCacheKey(parsed.args);
+          const cached    = _readCache.get(cacheKey);
+          const hash      = crypto.createHash('sha1').update(String(result.content)).digest('hex');
+          const tailStart = _windowTailStart(messages.length, windowOpts); // étape à partir de laquelle la tail commence
+          if (cached && cached.hash === hash && cached.step > tailStart) {
+            result = { ok: true, content: `[déjà lu à l'étape ${cached.step} — contenu identique]` };
+          } else {
+            _readCache.set(cacheKey, { step, hash });
+          }
         }
         // État de tâche : une lecture compte, et vaut vérification si le fichier a été modifié
         _reads.set(String(parsed.args.path), step);
@@ -735,6 +788,16 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (result.ok) {
       if (result.content != null) {
         resultForContext = { ...result, content: _truncateResult(result.content) };
+        // Sans cette consigne, le modèle conclut que la fin du fichier n'existe pas
+        if (parsed.tool === TOOLS.READ_FILE && resultForContext.content !== result.content) {
+          const shownLines = String(result.content).slice(0, MAX_RESULT_CHARS).split('\n').length;
+          const header = result.start_line != null ? 1 : 0; // ligne « [Lignes x–y] »
+          const next = (result.start_line ?? 1) + shownLines - 1 - header;
+          resultForContext.content += `\nPour lire la suite : read_file avec "start_line": ${next} (${result.total_lines} lignes au total).`;
+        }
+      } else if (typeof result.stdout === 'string') {
+        // Un lanceur écrit son bilan et ses échecs à la fin : couper au milieu, pas à la fin
+        resultForContext = { ...result, stdout: _keepEnds(result.stdout, MAX_RESULT_CHARS) };
       } else {
         const serialized = JSON.stringify(result);
         if (serialized.length > MAX_RESULT_CHARS) {
@@ -756,7 +819,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     const remaining = maxSteps - step;
     let resultMsg = result.ok
       ? `Résultat : ${typeof resultForContext === 'string' ? resultForContext : JSON.stringify(resultForContext)}`
-      : `Erreur outil : ${result.error}`;
+      : _failureMessage(result);
 
     // Vérification obligatoire après écriture : force le LLM à relire avant de continuer.
     // Les erreurs de code les plus fréquentes viennent d'une écriture non vérifiée.
@@ -824,10 +887,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     messages.push({ role: 'user', content: resultMsg });
   }
 
-  mcpRegistry.dispose();
-  disposeBrowser().catch(() => {});
-  disposeLsp().catch(() => {});
-  const failResult = { ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
+  _cleanup();
+  const failResult ={ ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
   if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
   return failResult;
 }

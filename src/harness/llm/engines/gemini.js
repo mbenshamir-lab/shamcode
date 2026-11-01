@@ -3,7 +3,7 @@
 // Conversion des rôles : 'assistant' → 'model', message system → systemInstruction.
 // Supporte le streaming SSE via streamGenerateContent si options.onToken est fourni.
 
-const { LlmEngine } = require('../base');
+const { LlmEngine, httpError } = require('../base');
 const { DEFAULT_TEMPERATURE } = require('../../../shared/constants');
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -53,6 +53,11 @@ class GeminiEngine extends LlmEngine {
     };
     // Top-P du panneau Paramètres (jamais transmis auparavant).
     if (typeof options.topP === 'number') body.generationConfig.topP = options.topP;
+    // Sur demande seulement (la boucle agent) : d'autres appels attendent du texte libre.
+    // Les modèles Gemma ne prennent pas ce mode en charge.
+    if (options.jsonMode && this.model.startsWith('gemini-')) {
+      body.generationConfig.responseMimeType = 'application/json';
+    }
     if (systemInstruction) body.systemInstruction = systemInstruction;
 
     const endpoint = streaming ? 'streamGenerateContent' : 'generateContent';
@@ -66,10 +71,7 @@ class GeminiEngine extends LlmEngine {
       signal: options.signal,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`GEMINI_HTTP_${res.status}: ${err.slice(0, 200)}`);
-    }
+    if (!res.ok) throw await httpError('GEMINI', res);
 
     // ── Mode non-streaming ──────────────────────────────────────────────────
     if (!streaming) {
@@ -80,6 +82,7 @@ class GeminiEngine extends LlmEngine {
         options.onUsage({
           inputTokens:  data.usageMetadata.promptTokenCount     || 0,
           outputTokens: data.usageMetadata.candidatesTokenCount || 0,
+          truncated:    data.candidates[0].finishReason === 'MAX_TOKENS',
         });
       }
       return text;
@@ -91,6 +94,7 @@ class GeminiEngine extends LlmEngine {
     let fullText  = '';
     let buffer    = '';
     let usageMeta = null;
+    let finishReason = null;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -109,6 +113,7 @@ class GeminiEngine extends LlmEngine {
           const token = json?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (token) { fullText += token; options.onToken(token); }
           if (json?.usageMetadata) usageMeta = json.usageMetadata;
+          if (json?.candidates?.[0]?.finishReason) finishReason = json.candidates[0].finishReason;
         } catch { /* ligne SSE mal formée — ignorée */ }
       }
     }
@@ -118,6 +123,7 @@ class GeminiEngine extends LlmEngine {
       options.onUsage({
         inputTokens:  usageMeta?.promptTokenCount     || 0,
         outputTokens: usageMeta?.candidatesTokenCount || Math.ceil(fullText.length / 4),
+        truncated:    finishReason === 'MAX_TOKENS',
       });
     }
     return fullText;

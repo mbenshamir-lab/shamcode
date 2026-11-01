@@ -58,6 +58,9 @@ describe('Bug 3 — troncature des résultats sans content', () => {
 
   const rcCode = `
     const MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
+    const TOOLS = { READ_FILE: 'read_file' };
+    const parsed = { tool: 'autre' };
+    const _keepEnds = (text) => text;
     function _truncateResult(result) { ${trMatch[1]}
       return result;
     }
