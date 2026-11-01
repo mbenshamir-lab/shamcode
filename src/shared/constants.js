@@ -11,6 +11,7 @@ const SESSIONS_RETENTION = 100;
 const MAX_RESULT_CHARS  = 6000;   // ~1500 tokens — tronque les résultats d'outils longs
 const WINDOW_KEEP_PAIRS = 10;     // garde les N dernières paires assistant/user
 const WINDOW_THRESHOLD  = 26;     // déclenche la fenêtre au-delà de N messages totaux
+const MAX_TASK_TOKENS   = 500000; // tokens facturés au plein tarif par tâche, sous-agents compris (0 = sans limite)
 
 const IPC = {
   LLM_REQUEST:    'llm:request',
@@ -186,4 +187,4 @@ const PERSONA_IDS = {
   DESIGNER:   'designer',
 };
 
-module.exports = { MAX_STEPS, MAX_RETRIES_PER_STEP, MAX_CONTEXT_CHARS, DEFAULT_TEMPERATURE, MAX_BACKUPS, SESSIONS_RETENTION, MAX_RESULT_CHARS, WINDOW_KEEP_PAIRS, WINDOW_THRESHOLD, IPC, ENGINES, TOOLS, APPS_IPC, PROCS_IPC, TDD_PHASES, PERSONA_IDS };
+module.exports = { MAX_STEPS, MAX_RETRIES_PER_STEP, MAX_CONTEXT_CHARS, DEFAULT_TEMPERATURE, MAX_BACKUPS, SESSIONS_RETENTION, MAX_RESULT_CHARS, WINDOW_KEEP_PAIRS, WINDOW_THRESHOLD, MAX_TASK_TOKENS, IPC, ENGINES, TOOLS, APPS_IPC, PROCS_IPC, TDD_PHASES, PERSONA_IDS };

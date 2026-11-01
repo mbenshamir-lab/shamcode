@@ -134,7 +134,8 @@ describe('compaction par paliers', () => {
       requests.push(messages.map(m => String(m.content)));
       n++;
       if (n > steps) return '{"tool":"finish","args":{"summary":"fin"}}';
-      return JSON.stringify({ tool: 'list_dir', args: { path: '.' } });
+      // Arguments variés : des appels identiques déclencheraient la détection de boucle
+      return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: n } });
     } });
     return requests;
   }
@@ -170,10 +171,11 @@ describe('compaction par paliers', () => {
     const dir = project({ 'a.js': 'x\n' });
     let last;
     let n = 0;
+    let step = 0;
     await runAgent({ task: 't', projectRoot: dir, config: { maxSteps: 20 }, llmGenerate: async (messages) => {
       last = messages.map(m => m.role);
       if (messages.some(m => String(m.content).includes('ÉTAT DE LA TÂCHE'))) n++;
-      return JSON.stringify({ tool: 'list_dir', args: { path: '.' } });
+      return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: ++step } });
     } });
     assert.ok(n > 0, 'état présent');
     assert.deepEqual(last.slice(0, 4), ['system', 'user', 'user', 'assistant']);
@@ -189,7 +191,7 @@ describe('compaction par paliers', () => {
       n++;
       if (n === 1 || n === 20) return JSON.stringify({ tool: 'read_file', args: { path: 'a.js' } });
       if (n > 20) return '{"tool":"finish","args":{"summary":"fin"}}';
-      return JSON.stringify({ tool: 'list_dir', args: { path: '.' } });
+      return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: n } });
     } });
     assert.ok(seen[20].includes('CONTENU_REEL'), seen[20].slice(0, 120));
   });
