@@ -66,11 +66,24 @@ describe('ClaudeEngine — requête', () => {
     assert.deepEqual(sent.map(b => b.max_tokens), [16000, 4096, 400]);
   });
 
-  it('met le prompt système en cache, sans marquer les messages', async () => {
+  it('met en cache le prompt système et le dernier message seulement', async () => {
     const sent = mockFetch(textReply());
-    await new ClaudeEngine({ apiKey: 'k', model: 'claude-haiku-4-5' }).generate(messages);
+    const history = [...messages, { role: 'assistant', content: 'a' }, { role: 'user', content: 'b' }];
+    await new ClaudeEngine({ apiKey: 'k', model: 'claude-haiku-4-5' }).generate(history);
     assert.deepEqual(sent[0].system, [{ type: 'text', text: 'SYS', cache_control: { type: 'ephemeral' } }]);
     assert.equal(sent[0].messages[0].content, 'tâche');
+    assert.deepEqual(sent[0].messages[2].content, [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }]);
+  });
+
+  it('marque le dernier bloc d\'un message avec image', async () => {
+    const sent = mockFetch(textReply());
+    await new ClaudeEngine({ apiKey: 'k', model: 'claude-haiku-4-5' }).generate([{ role: 'user', content: [
+      { type: 'text', text: 'vois' },
+      { type: 'image', base64: 'QUJD', mimeType: 'image/png' },
+    ] }]);
+    const [text, image] = sent[0].messages[0].content;
+    assert.equal(text.cache_control, undefined);
+    assert.deepEqual(image.cache_control, { type: 'ephemeral' });
   });
 });
 

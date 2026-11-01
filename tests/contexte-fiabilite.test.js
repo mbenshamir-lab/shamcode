@@ -127,11 +127,13 @@ describe('RAG — index à jour', () => {
     assert.equal(store.all().length, 1);
   });
 
-  it('n\'indexe ni les lockfiles ni les fixtures', () => {
+  it('n\'indexe ni les lockfiles, ni les fixtures, ni les données du harness, ni les worktrees', () => {
     const { store } = indexed({
       'a.js': 'function a() {}\n',
       'package-lock.json': '{}\n',
       'tests/fixtures/f.js': 'function f() {}\n',
+      '.harness/depgraph.json': '{}\n',
+      '.claude/worktrees/copie/a.js': 'function a() {}\n',
     });
     assert.deepEqual([...store.paths()], ['a.js']);
   });

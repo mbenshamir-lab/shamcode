@@ -16,6 +16,7 @@
 const { spawn }  = require('child_process');
 const os         = require('os');
 const path       = require('path');
+const { safeEnv } = require('./run-command');
 
 const MAX_LINES     = 500;  // ring buffer par processus
 const MAX_OUT_CHARS = 6000; // limite de get_output
@@ -93,7 +94,7 @@ function startProcess(args = {}, projectRoot = '', config = {}) {
   const proc  = spawn(command, [], {
     cwd,
     shell:   true,
-    env:     { ...process.env, ...(args.env || {}) },
+    env:     { ...safeEnv(), ...(args.env || {}) },
     detached: false,
     // Sur Windows cmd.exe /c handle les scripts npm correctement
     ...(isWin ? {} : {}),

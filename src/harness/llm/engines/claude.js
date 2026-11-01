@@ -45,10 +45,17 @@ class ClaudeEngine extends LlmEngine {
       messages:   userMsgs,
     };
     // Le prompt système et le contexte projet sont renvoyés à l'identique à chaque étape :
-    // les mettre en cache évite de les repayer plein tarif. Pas de marqueur sur les messages,
-    // la fenêtre glissante les réécrit et chaque écriture de cache serait perdue.
+    // les mettre en cache évite de les repayer plein tarif.
     if (systemMsg) {
       body.system = [{ type: 'text', text: systemMsg.content, cache_control: { type: 'ephemeral' } }];
+    }
+    // Le dernier message prolonge ce cache : entre deux paliers de compaction, l'historique
+    // ne fait que s'allonger, donc chaque requête relit le préfixe de la précédente.
+    const lastMsg = userMsgs[userMsgs.length - 1];
+    if (lastMsg) {
+      const blocks = Array.isArray(lastMsg.content) ? lastMsg.content : [{ type: 'text', text: lastMsg.content }];
+      blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], cache_control: { type: 'ephemeral' } };
+      lastMsg.content = blocks;
     }
     if (ACCEPTS_SAMPLING.test(this.model)) {
       // Un seul des deux : les modèles récents de cette liste refusent la combinaison.

@@ -24,6 +24,8 @@ const CODE_EXTENSIONS = new Set([
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'target', '__pycache__',
   '.next', 'out', 'coverage', '.cache', 'fixtures', '__fixtures__',
+  // Données du harness, et worktrees qui dupliqueraient tout le projet dans l'index
+  '.harness', '.claude',
 ]);
 
 // Fichiers générés : très volumineux, ils remontent sur n'importe quel nom de paquet

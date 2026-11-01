@@ -13,10 +13,6 @@ const agentSrc = require('fs').readFileSync(
 const wmMatch = agentSrc.match(/function _windowMessages\(messages, stateBlock = '', opts = \{\}\) \{([\s\S]*?)\n\}/);
 assert.ok(wmMatch, '_windowMessages introuvable');
 
-// _windowTailStart (signature étendue : (msgCount, opts))
-const wtMatch = agentSrc.match(/function _windowTailStart\(msgCount, opts = \{\}\) \{([\s\S]*?)\n\}/);
-assert.ok(wtMatch, '_windowTailStart introuvable');
-
 const WINDOW_KEEP_PAIRS = 10;
 const WINDOW_THRESHOLD  = 26;
 
@@ -25,13 +21,12 @@ const moduleCode = `
   const WINDOW_THRESHOLD  = ${WINDOW_THRESHOLD};
 
   function _windowMessages(messages, stateBlock = '', opts = {}) { ${wmMatch[1]} }
-  function _windowTailStart(msgCount, opts = {}) { ${wtMatch[1]} }
 
-  module.exports = { _windowMessages, _windowTailStart };
+  module.exports = { _windowMessages };
 `;
 const m = new module.constructor();
 m._compile(moduleCode, 'agent-fns.js');
-const { _windowMessages, _windowTailStart } = m.exports;
+const { _windowMessages } = m.exports;
 
 // ── Fix 1 : _windowMessages injecte une note quand la fenêtre est active ──────
 describe('_windowMessages — note de troncature', () => {
@@ -68,31 +63,6 @@ describe('_windowMessages — note de troncature', () => {
     assert.ok(note, 'note présente');
     assert.ok(note.content.includes('ÉTAT DE LA TÂCHE'), 'état injecté dans la note');
     assert.ok(note.content.includes('src/a.js'), 'contenu de l\'état conservé');
-  });
-
-});
-
-// ── Fix 1 : _windowTailStart — calcul correct ─────────────────────────────────
-describe('_windowTailStart', () => {
-
-  it('retourne 0 si messages ≤ WINDOW_THRESHOLD', () => {
-    assert.equal(_windowTailStart(20), 0);
-    assert.equal(_windowTailStart(26), 0);
-  });
-
-  it('retourne une valeur > 0 si messages > WINDOW_THRESHOLD', () => {
-    const start = _windowTailStart(30);
-    assert.ok(start > 0, `doit être > 0 (got ${start})`);
-  });
-
-  it('étapes cachées à tailStart sont considérées expirées', () => {
-    // 30 messages → tailStart = (30 - 2 - 20) / 2 = 4
-    const tailStart = _windowTailStart(30);
-    assert.equal(tailStart, 4, 'tailStart = 4');
-    // Une lecture à l'étape 3 < 4 → expirée
-    assert.ok(3 <= tailStart, 'étape 3 expirée');
-    // Une lecture à l'étape 5 > 4 → encore dans la fenêtre
-    assert.ok(5 > tailStart, 'étape 5 encore présente');
   });
 
 });
