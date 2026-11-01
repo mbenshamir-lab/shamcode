@@ -39,12 +39,18 @@ function _hashFile(file) {
   return crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex');
 }
 
-/** AGENTS.md est exclu : le prompt demande à l'agent de le tenir à jour à chaque tâche. */
+/**
+ * Écrits par le harness lui-même, jamais par une décision de l'agent : AGENTS.md (le prompt
+ * demande de le tenir à jour) et .harness/ (graphe de dépendances, notes).
+ */
+const HARNESS_OUTPUT = new Set(['AGENTS.md', '.harness']);
+
 function _snapshot(root, dir = root, out = {}) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (HARNESS_OUTPUT.has(e.name)) continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) _snapshot(root, full, out);
-    else if (e.name !== 'AGENTS.md') out[path.relative(root, full).replace(/\\/g, '/')] = _hashFile(full);
+    else out[path.relative(root, full).replace(/\\/g, '/')] = _hashFile(full);
   }
   return out;
 }
