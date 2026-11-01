@@ -17,8 +17,35 @@ const BLOCKED_PATTERNS = [
   /del\s+\/[fqs]+\s+[a-z]:\\/i,  // del /f /q /s C:\
 ];
 
+// Lecture ou test uniquement. Le chaînage et les redirections sont exclus : ils
+// permettraient de glisser n'importe quoi derrière une commande anodine.
+const SAFE_COMMAND = /^(git (status|diff|log|show)|npm (test|run (test|lint|build))|(node|npm|python) --version|pytest|cargo (test|check)|go test|ls|dir|pwd)(\s|$)/;
+const CHAINING = /[;&|`$<>\n]/;
+
 function _isBlocked(command) {
   return BLOCKED_PATTERNS.some(re => re.test(command));
+}
+
+/**
+ * Demande l'accord de l'utilisateur pour une commande, sauf si elle est anodine.
+ * Sans requestApproval (mode Action, tâche planifiée), l'accord est déjà acquis.
+ * @param {string} command
+ * @param {object} config
+ * @returns {Promise<{ ok: false, error: string } | null>} un refus, ou null si la voie est libre
+ */
+async function approveCommand(command, config) {
+  const trimmed = String(command || '').trim();
+  if (!config?.requestApproval || !trimmed) return null;
+  if (SAFE_COMMAND.test(trimmed) && !CHAINING.test(trimmed)) return null;
+
+  const approved = await config.requestApproval({
+    type:      'write_preview',
+    path:      'Commande shell',
+    patch:     `+ ${trimmed}`,
+    stats:     { additions: 1, deletions: 0, hunks: 1 },
+    isCommand: true,
+  });
+  return approved ? null : { ok: false, error: 'REJETÉ_PAR_UTILISATEUR' };
 }
 
 /**
@@ -39,6 +66,9 @@ async function runShell(args, projectRoot, config) {
     return { ok: false, error: `COMMANDE_BLOQUÉE (destructrice): ${args.command.slice(0, 80)}` };
   }
 
+  const refused = await approveCommand(args.command, config);
+  if (refused) return refused;
+
   const run = await runCommand(args.command, { cwd: projectRoot, timeout: SHELL_TIMEOUT, signal: config._signal });
   if (run.aborted) return { ok: false, error: 'ANNULÉ' };
 
@@ -52,4 +82,4 @@ async function runShell(args, projectRoot, config) {
   return { ok: false, error, stdout, code: run.code };
 }
 
-module.exports = { runShell };
+module.exports = { runShell, approveCommand };

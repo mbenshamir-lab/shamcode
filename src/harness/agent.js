@@ -153,15 +153,6 @@ function _windowMessages(messages, stateBlock = '', opts = {}) {
   return [...head, note, ...tail];
 }
 
-/** Index de la première paire tail dans messages (1-based en étapes) lorsque la fenêtre est active. */
-function _windowTailStart(msgCount, opts = {}) {
-  const keepPairs = opts.keepPairs ?? WINDOW_KEEP_PAIRS;
-  const threshold = opts.threshold ?? WINDOW_THRESHOLD;
-  if (msgCount <= threshold) return 0;
-  // Chaque étape produit 2 messages (assistant + user), donc on divise par 2
-  return Math.max(0, (msgCount - 2 - keepPairs * 2) / 2);
-}
-
 async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent = () => {}, signal = null }) {
   const maxSteps = config.maxSteps ?? MAX_STEPS;
   // Surcharges de consommation de contexte (cf. docs/DECISIONS.md) — undefined retombe sur la constante
@@ -429,8 +420,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Cache intra-session : évite de réinjecter le contenu d'un fichier déjà lu.
   // La clé inclut la plage de lignes : sans elle, une relecture paginée du même fichier
   // renverrait « déjà lu » et la fin d'un fichier tronqué resterait inaccessible.
-  // Valeur : { step, hash } — le hash détecte les modifications faites hors des outils
-  // d'écriture (shell, formateur, sous-agent, utilisateur).
+  // Valeur : { step, hash, index } — le hash détecte les modifications faites hors des
+  // outils d'écriture (shell, formateur, sous-agent, utilisateur) ; index situe le message
+  // portant le contenu, pour savoir s'il a survécu à la compaction.
   const _readCache = new Map();
   const _readCacheKey = (args) => `${args.path}|${args.start_line ?? ''}|${args.end_line ?? ''}`;
   const _invalidateReadCache = (filePath) => {
@@ -546,6 +538,27 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     }
     return { ok: true };
   };
+  // ── Compaction par paliers (ADR-030) ───────────────────────────────────────
+  // { from, note } : messages omis avant `from`, note figée jusqu'au palier suivant. Entre
+  // deux paliers, l'historique envoyé ne fait que s'allonger : le début de la requête reste
+  // identique, condition du cache et de la validité des blocs de réflexion.
+  let _compaction = null;
+
+  const _compactedMessages = () => {
+    const threshold = windowOpts.threshold ?? WINDOW_THRESHOLD;
+    // Moitié seulement : en gardant keepPairs entières, le seuil reviendrait deux étapes plus tard
+    const keepPairs = Math.ceil((windowOpts.keepPairs ?? WINDOW_KEEP_PAIRS) / 2);
+    const visible = () => (_compaction
+      ? [messages[0], messages[1], _compaction.note, ...messages.slice(_compaction.from)]
+      : messages);
+
+    if (visible().length > threshold) {
+      const window = _windowMessages(messages, _compactState(), { keepPairs, threshold: 0 });
+      _compaction = { from: messages.length - keepPairs * 2, note: window[2] };
+    }
+    return visible();
+  };
+
   // Compteur de tokens cumulés sur la session
   let _sessionIn  = 0;
   let _sessionOut = 0;
@@ -584,7 +597,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         totalIn: _sessionIn, totalOut: _sessionOut,
       });
     };
-    const windowed = _windowMessages(messages, _compactState(), windowOpts);
+    const windowed = _compactedMessages();
     // L'agent « réfléchit » : l'UI affiche une animation dédiée pendant la génération
     onEvent({ type: 'thinking', step: currentStep });
     // Consommation de la mémoire contextuelle (estimation fiable même sans usage API)
@@ -725,11 +738,11 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           const cacheKey  = _readCacheKey(parsed.args);
           const cached    = _readCache.get(cacheKey);
           const hash      = crypto.createHash('sha1').update(String(result.content)).digest('hex');
-          const tailStart = _windowTailStart(messages.length, windowOpts); // étape à partir de laquelle la tail commence
-          if (cached && cached.hash === hash && cached.step > tailStart) {
+          const visibleFrom = _compaction?.from ?? 0;
+          if (cached && cached.hash === hash && cached.index >= visibleFrom) {
             result = { ok: true, content: `[déjà lu à l'étape ${cached.step} — contenu identique]` };
           } else {
-            _readCache.set(cacheKey, { step, hash });
+            _readCache.set(cacheKey, { step, hash, index: messages.length });
           }
         }
         // État de tâche : une lecture compte, et vaut vérification si le fichier a été modifié

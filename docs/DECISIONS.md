@@ -272,3 +272,44 @@
 **Décision** : `@huggingface/transformers` (Apache-2.0) + modèle `onnx-community/whisper-base` (MIT), exécutés en WASM dans une fenêtre cachée dédiée (`src/renderer-voice/`), créée **à la demande** (`getVoiceWindow()`) — un utilisateur qui n'active pas la fonction ne charge rien. Parcours : clic micro (`MediaRecorder`) → clic d'arrêt → audio envoyé par IPC `voice:transcribe` → Whisper transcrit → `condenseDictation()` (harness, `llmGenerate` injecté) reformule en gardant l'idée principale → texte inséré dans le champ, jamais envoyé automatiquement. Activation par `config.voiceEnabled` (défaut `false`, interrupteur dans Paramètres → Agent). Dictées < 40 caractères : pas d'appel LLM. LLM en erreur ou réponse vide : repli sur la transcription brute.
 **Conséquences** : le modèle (~75 Mo) est téléchargé une fois au premier usage (progression relayée à l'UI) puis servi par le cache. Mesuré en Electron : phrase de 17 s transcrite à l'identique en 17 s (modèle en cache). `onnxruntime-node` et `sharp` (~290 Mo, natifs) sont exclus du paquet (`electron-builder.yml`) car inutiles en WASM. On importe `dist/transformers.min.js` (autonome) : le build `transformers.web.js` contient un import nu `onnxruntime-web/webgpu` invalide en `file://`. WASM mono-thread (`file://` n'est pas cross-origin isolated). Langue fixée d'après la langue de l'UI (Whisper détecte mal sur phrase courte ; une langue forcée ≠ langue parlée fait boucler le modèle).
 **Alternatives rejetées** : `webkitSpeechRecognition` (ne fonctionne pas dans Electron sans clés Google, audio envoyé à Google) ; whisper.cpp binaire/natif (empaquetage Windows plus lourd) ; Vosk (précision française insuffisante sur le vocabulaire technique) ; API OpenAI/Gemini (payant, non libre) ; chargement via CDN comme WebLLM (exige une connexion au premier lancement).
+
+---
+
+## ADR-029 : Isolation de l'exécution — environnement filtré et approbation des commandes
+
+**Date** : 2026-11-01
+**Contexte** : les commandes héritaient de tout `process.env` : le code lancé par `run_tests` ou `run_shell` pouvait lire les clés API de l'environnement. La liste noire du shell se contourne facilement.
+**Décision** : `run-command.js` retire de l'environnement des commandes les variables nommées comme des secrets, et `start_process` applique le même filtre. Quand le mode d'approbation est actif, `run_shell` et `start_process` demandent une validation, sauf pour une courte liste de commandes de lecture ou de test sans chaînage.
+**Conséquences** : un test qui lit un secret dans l'environnement ne le trouve plus. `deploy` garde l'environnement complet : déployer exige des jetons, et l'outil est déjà derrière `enableDeploy`. En mode Action, aucune approbation : c'est le choix explicite de l'utilisateur. Ce n'est pas un bac à sable : le code exécuté garde les droits de l'utilisateur.
+**Alternatives rejetées** : bac à sable Docker dès maintenant (tous les postes Windows ne l'ont pas, décision reportée après mesure) ; liste blanche seule (trop de faux refus sur un projet réel).
+
+---
+
+## ADR-030 : Compaction par paliers
+
+**Date** : 2026-11-01
+**Contexte** : la fenêtre glissante réécrivait le début de l'historique à chaque étape au-delà de 26 messages. Cela annulait le cache des messages, et sur les modèles Claude récents, modifier l'historique invalide les blocs de réflexion.
+**Décision** : l'historique est compacté d'un coup à un seuil, puis reste identique, en ajout seul, jusqu'au palier suivant. La note de compaction est figée pour la durée du palier. Chaque palier conserve la moitié de `windowKeepPairs`, sinon le seuil serait de nouveau atteint deux étapes plus tard. L'état déterministe (ADR-020) reste la base de la note. Le moteur Claude marque le dernier message comme point de cache.
+**Conséquences** : le début de la requête reste stable entre deux paliers. Après un palier, le modèle voit moins de messages récents qu'avant ; l'état de tâche et le compteur d'étapes compensent.
+**Alternatives rejetées** : résumé par le modèle dès maintenant (un appel de plus à chaque palier, à ajouter seulement si la mesure le justifie) ; relever seulement le seuil (contexte plus lourd à chaque étape).
+
+---
+
+## ADR-031 : Carte du code dans le contexte
+
+**Date** : 2026-11-01
+**Contexte** : l'agent recevait une arborescence et des extraits, mais pas la structure du projet : il ignorait quels fichiers sont centraux et ce qu'ils exposent.
+**Décision** : `context/codemap.js` produit une carte compacte : fichiers les plus importés d'abord, avec leurs fonctions et classes publiques. Elle réutilise `depgraph.js` et `symbols.js`, sans nouvelle dépendance. Elle reçoit 20 % du budget, pris surtout sur l'arborescence, en partie redondante : les parts passent à rag 65 %, map 20 %, tree 15 %. Mesuré sur 10 requêtes : à 55 % de RAG, les extraits perdaient 2 fichiers attendus sur 13 ; à 65 %, ils n'en perdent aucun.
+**Conséquences** : arborescence plus courte quand le budget est plein. Sur ces 10 requêtes, 12 fichiers attendus sur 13 sont présents dans le contexte, contre 8 avec les extraits seuls. Langages couverts : ceux du graphe de dépendances (JS, TS, Python, Rust) ; regex, donc pas de précision de compilateur.
+**Alternatives rejetées** : tree-sitter (binaires natifs à empaqueter) ; embeddings pour cette fonction (ils servent la recherche, pas la structure).
+
+---
+
+## ADR-032 : Tool calling natif sur les moteurs cloud (décidé, non implémenté)
+
+**Date** : 2026-11-01
+**Contexte** : le JSON dans le texte impose un appel par réponse, un parser tolérant et des relances sur erreur de format, ce qui coûte des étapes et des tokens.
+**Décision** : option B : format interne `{ text, toolCalls }`, converti par chaque moteur. D'abord un appel à la fois, puis des lectures en parallèle, les écritures restant séquentielles. Le JSON texte reste pour les moteurs locaux. Le champ `intent` affiché par l'interface est conservé. Implémentation après fusion de la PR n°1 et chantiers ADR-029 à 031.
+**Conséquences** : change le contrat de `llmGenerate`. Les schémas doivent être complétés : 27 existent pour le serveur MCP, sur plus de 70 outils.
+**Alternatives rejetées** : traduire les appels natifs vers le JSON actuel (l'historique rejoué ne contiendrait pas de vrais appels, pas de parallélisme) ; basculer tout le projet (impossible pour WebLLM).
+**Reporté** : embeddings multilingues (révision d'ADR-009) et bac à sable fort, à décider après une mesure sur gros dépôt.

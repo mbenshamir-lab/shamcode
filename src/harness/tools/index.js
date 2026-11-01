@@ -25,7 +25,7 @@ const { deployProject }  = require('./deploy');
 const { startProcess, stopProcess, getOutput, listProcesses } = require('./process-runner');
 const { searchGrep }     = require('./grep');
 const { gitStatus, gitDiff, gitCreateBranch, gitCommit } = require('./git');
-const { runShell } = require('./shell');
+const { runShell, approveCommand } = require('./shell');
 const { spawnAgent, spawnParallel } = require('./spawn');
 const { orchestrate } = require('./orchestrate');
 const { enableCollaboration, postMessage, readMessages } = require('./message-bus');
@@ -135,8 +135,10 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     }
     case TOOLS.DEPLOY:
       return deployProject(args, projectRoot, config);
-    case TOOLS.START_PROCESS:
-      return startProcess(args, projectRoot, config);
+    case TOOLS.START_PROCESS: {
+      const refused = config.enableShell ? await approveCommand(args.command, config) : null;
+      return refused || startProcess(args, projectRoot, config);
+    }
     case TOOLS.STOP_PROCESS:
       return stopProcess(args);
     case TOOLS.GET_OUTPUT:

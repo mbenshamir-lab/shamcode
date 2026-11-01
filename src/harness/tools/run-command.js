@@ -9,6 +9,17 @@ const os = require('os');
 
 const MAX_BUFFER = 10 * 1024 * 1024;
 
+const SECRET_NAME = /API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|AUTH_?TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|(^|_)TOKEN($|_)/i;
+
+/**
+ * Environnement transmis aux commandes, sans les variables nommées comme des secrets.
+ * Le code lancé ici peut être écrit par le modèle : il ne doit pas lire les clés du harness.
+ * @returns {NodeJS.ProcessEnv}
+ */
+function safeEnv() {
+  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !SECRET_NAME.test(name)));
+}
+
 /** Arrête la commande et ses enfants : sous Windows, kill() ne touche que le shell. */
 function _killTree(child) {
   if (os.platform() === 'win32') {
@@ -33,7 +44,7 @@ function runCommand(command, { cwd, timeout, signal }) {
     let timedOut = false;
     let aborted  = false;
 
-    const child = exec(command, { cwd, maxBuffer: MAX_BUFFER, encoding: 'utf8' }, (err, stdout, stderr) => {
+    const child = exec(command, { cwd, env: safeEnv(), maxBuffer: MAX_BUFFER, encoding: 'utf8' }, (err, stdout, stderr) => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
       resolve({
@@ -55,4 +66,4 @@ function runCommand(command, { cwd, timeout, signal }) {
   });
 }
 
-module.exports = { runCommand };
+module.exports = { runCommand, safeEnv };
