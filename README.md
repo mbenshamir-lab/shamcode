@@ -17,8 +17,8 @@ Agent de code desktop pour Windows, piloté par un LLM. Il tourne en local (WebL
 
 ## Installation (utilisateurs)
 
-1. Va dans l'onglet **Releases** du dépôt et télécharge `ShamCode-x.y.z-win.zip` (archive portable : l'installeur NSIS n'est pas produit pour cette version, voir la note de release).
-2. Décompresse l'archive et lance `ShamCode.exe` (Windows 10/11, x64). Ce n'est pas signé : Windows SmartScreen peut demander une confirmation.
+1. Va dans l'onglet **Releases** du dépôt et télécharge `ShamCode.Setup.x.y.z.exe` (installeur) ou `ShamCode-x.y.z-win.zip` (portable).
+2. Lance l'installeur — ou décompresse l'archive et lance `ShamCode.exe` — sur Windows 10/11 x64. Ce n'est pas signé : Windows SmartScreen peut demander une confirmation.
 3. Au premier lancement, ouvre les **Paramètres** et renseigne ton moteur : un modèle local (GPU requis, téléchargement au premier usage) ou une clé API cloud.
 
 Aucune clé ni donnée n'est fournie avec l'application : chaque utilisateur démarre à vide. Tes données sont dans `%APPDATA%\code-harness` (les copies du dépôt reçoivent un dossier suffixé pour ne rien partager).
@@ -76,8 +76,8 @@ A Windows desktop code agent driven by an LLM. It runs locally (WebLLM via WebGP
 
 ## Install (users)
 
-1. Open the repository's **Releases** tab and download `ShamCode-x.y.z-win.zip` (portable archive: the NSIS installer is not produced for this version, see the release note).
-2. Unzip it and run `ShamCode.exe` (Windows 10/11, x64). It is unsigned, so Windows SmartScreen may ask for confirmation.
+1. Open the repository's **Releases** tab and download `ShamCode.Setup.x.y.z.exe` (installer) or `ShamCode-x.y.z-win.zip` (portable).
+2. Run the installer — or unzip the archive and run `ShamCode.exe` — on Windows 10/11 x64. It is unsigned, so Windows SmartScreen may ask for confirmation.
 3. On first launch, open **Settings** and configure your engine: a local model (GPU required, downloaded on first use) or a cloud API key.
 
 No key or data ships with the app: every user starts from a clean slate. Your data lives in `%APPDATA%\code-harness`.
