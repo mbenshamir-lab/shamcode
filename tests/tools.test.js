@@ -523,3 +523,35 @@ test('find_symbol — retourne le bon numéro de ligne', () => {
   assert.equal(r.matches.length, 1);
   assert.equal(r.matches[0].line, 3, `Attendu ligne 3, reçu ${r.matches[0].line}`);
 });
+
+// ── path-guard — nom du projet répété (défaut observé : DOCUM/DOCUM/images_guide.md) ──
+
+test('path-guard — tolère le nom du projet répété dans le chemin', () => {
+  const parent = tmpDir();
+  const root   = path.join(parent, 'DOCUM');
+  fs.mkdirSync(root);
+  fs.writeFileSync(path.join(root, 'guide.md'), '# guide');
+  const guard = makeGuard(root);
+
+  assert.equal(guard('DOCUM/guide.md'),  path.join(root, 'guide.md'));
+  assert.equal(guard('DOCUM\\guide.md'), path.join(root, 'guide.md'));
+});
+
+test('path-guard — ne corrige pas un chemin doublé qui n\'existe pas', () => {
+  const parent = tmpDir();
+  const root   = path.join(parent, 'DOCUM');
+  fs.mkdirSync(root);
+  const guard = makeGuard(root);
+
+  assert.equal(guard('DOCUM/absent.md'), path.join(root, 'DOCUM', 'absent.md'));
+});
+
+test('path-guard — un vrai sous-dossier homonyme reste accessible', () => {
+  const parent = tmpDir();
+  const root   = path.join(parent, 'DOCUM');
+  fs.mkdirSync(path.join(root, 'DOCUM'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'DOCUM', 'x.md'), 'x');
+  const guard = makeGuard(root);
+
+  assert.equal(guard('DOCUM/x.md'), path.join(root, 'DOCUM', 'x.md'));
+});

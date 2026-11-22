@@ -55,3 +55,35 @@ test('logger — disable() coupe l’écriture', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('logger — une exécution d\'agent laisse une trace exploitable', async () => {
+  const dir     = tmpDir();
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-log-proj-'));
+  fs.writeFileSync(path.join(project, 'a.js'), 'const a = 1;\n');
+
+  const previous = process.env.HARNESS_DATA_DIR;
+  process.env.HARNESS_DATA_DIR = dir;
+  try {
+    logger.enable();
+    const { runAgent } = require('../src/harness/agent');
+
+    const replies = [
+      '{"tool":"outil_inexistant","args":{}}',
+      '{"tool":"finish","args":{"summary":"fini"}}',
+    ];
+    const llmGenerate = async () => replies.shift() ?? '{"tool":"finish","args":{"summary":"fini"}}';
+
+    await runAgent({ task: 'tâche de test', llmGenerate, projectRoot: project, config: { maxSteps: 3 } });
+
+    const entries = fs.readFileSync(logger.currentPath(), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    assert.ok(entries.some(e => String(e.msg).includes('run_start')), 'démarrage non journalisé');
+    assert.ok(entries.some(e => e.mod === 'tool' && e.data?.tool === 'outil_inexistant'),
+      'échec d\'outil non journalisé');
+    assert.ok(entries.some(e => String(e.msg).includes('run_finish')), 'fin d\'exécution non journalisée');
+  } finally {
+    if (previous === undefined) delete process.env.HARNESS_DATA_DIR;
+    else process.env.HARNESS_DATA_DIR = previous;
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(project, { recursive: true, force: true });
+  }
+});

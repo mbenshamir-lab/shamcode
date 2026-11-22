@@ -39,6 +39,7 @@ const { buildFeedbackSummary }         = require('./feedback/advisor');
 const { loadActiveGoal, saveGoal, archiveActiveGoal } = require('./goals/store');
 const { goalSummary }                   = require('./goals/model');
 const { evaluateGoalCompletion, shouldWarnBudget } = require('./goals/policy');
+const logger = require('./logger');
 const crypto = require('crypto');
 const fs     = require('fs');
 const path   = require('path');
@@ -205,6 +206,13 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     session = { id: null };
   }
   config._sessionId = session.id;
+  // Journal fichier : sans trace, un échec en usage réel n'est pas diagnosticable.
+  logger.event(session.id, 'run_start', {
+    task: String(task).slice(0, 200),
+    projectRoot,
+    engine: config.model?.primary ?? null,
+    subAgent: isSubAgent,
+  });
 
   // Catalogue complet — filtré selon le contexte (agent principal vs sous-agent)
   const allToolDefs = {
@@ -689,6 +697,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _cleanup();
       const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
       if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
+      logger.event(session.id, 'run_aborted', { steps: trace.length });
       onEvent({ type: 'cancelled' });
       return cancelled;
     }
@@ -708,6 +717,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           _cleanup();
           const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
           if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
+          logger.event(session.id, 'run_aborted', { steps: trace.length });
           onEvent({ type: 'cancelled' });
           return cancelled;
         }
@@ -803,6 +813,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
 
       onEvent({ type: 'finish', summary });
+      logger.event(session.id, 'run_finish', { steps: trace.length, unverified: !proof.ok, goal: activeGoal?.status ?? null });
       _cleanup();
       const result = {
         ok: true,
@@ -938,6 +949,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     }
 
     entry.result = result;
+    // Chaque échec d'outil est journalisé : c'est la seule trace exploitable après coup.
+    if (!result.ok) {
+      logger.warn('tool', 'échec', {
+        tool: parsed.tool, step, error: String(result.error || '').slice(0, 300),
+      });
+    }
     onEvent({ type: 'tool_result', step, result });
 
     // Retourner le résultat + rappel d'étape pour que le LLM sache quand s'arrêter
@@ -1037,6 +1054,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     } catch { /* objectif non persistable */ }
   }
 
+  logger.event(session.id, 'run_max_steps', { steps: trace.length, maxSteps });
   const failResult = { ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
   if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
   return failResult;

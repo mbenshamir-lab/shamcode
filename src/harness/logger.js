@@ -68,8 +68,10 @@ function write(level, module, message, data) {
   if (!_enabled) return;
 
   try {
+    // Le dossier peut manquer au premier log, ou changer de place (tests, CLI) :
+    // on vérifie à chaque écriture. La rotation, elle, reste une fois par processus.
+    if (!fs.existsSync(_logDir())) _ensureDir();
     if (!_rotateChecked) {
-      _ensureDir();
       _rotate();
       _rotateChecked = true;
     }
