@@ -33,7 +33,9 @@ jobs:
       # de node-llama-cpp (moteur GGUF), téléchargés au postinstall.
       - run: npm ci
 
-      - run: npx electron-builder --win --config electron-builder.yml
+      # --publish never : en CI, electron-builder tente sinon de publier lui-même
+      # (il exige GH_TOKEN et échoue). C'est l'étape gh ci-dessous qui publie.
+      - run: npx electron-builder --win --config electron-builder.yml --publish never
 
       - name: Publier l'installeur sur la release
         shell: bash
