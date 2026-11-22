@@ -42,6 +42,28 @@ module.exports = {
     'node_modules/',
     'dist/',
     'src/renderer-hidden/',   // ESM + CDN — style différent
-    'src/renderer-visible/',  // UI vanilla — Prettier seul suffit
+  ],
+  overrides: [
+    {
+      // UI vanilla : on ne vérifie que les erreurs certaines (identifiants et
+      // globales inconnus). Le style reste géré par Prettier, comme avant.
+      // C'est ce garde-fou qui aurait attrapé `messagesDiv` (variable inexistante).
+      files: ['src/renderer-visible/**/*.js'],
+      env: { browser: true },
+      parserOptions: { sourceType: 'script' },
+      rules: {
+        'no-undef':              'error',
+        'no-unused-vars':        'off',
+        'no-console':            'off',
+        'eqeqeq':                'off',
+        'no-var':                'off',
+        'prefer-const':          'off',
+        'semi':                  'off',
+        'quotes':                'off',
+        'comma-dangle':          'off',
+        'no-trailing-spaces':    'off',
+        'eol-last':              'off',
+      },
+    },
   ],
 };

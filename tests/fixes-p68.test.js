@@ -71,11 +71,11 @@ describe('app.js — un seul cadre déplié', () => {
   it('le clic sur un en-tête choisit le cadre', () => {
     // Cherche le handler du Task Panel (Object.entries(_tpPanels)…) — il peut y avoir
     // d'autres addEventListener('click') dans app.js (ex: sidebar sessions), d'où lastIndexOf.
-    const anchor = "Object.entries(_tpPanels).forEach";
+    const anchor = 'Object.entries(_tpPanels).forEach';
     // Deux occurrences : la première dans _tpToggleExpanded, la seconde câble les click handlers.
     const anchorIdx = src.lastIndexOf(anchor);
     assert.ok(anchorIdx !== -1, 'boucle _tpPanels requise');
-    const block = src.slice(anchorIdx, anchorIdx + 400);
+    const block = src.slice(anchorIdx, anchorIdx + 700);
     assert.ok(block.includes("header.addEventListener('click'"), 'handler requis');
     assert.ok(block.includes('_tpToggleExpanded(key)'), 'bascule au clic');
     assert.ok(!block.includes("classList.toggle('tp-panel-collapsed')"), 'plus de bascule indépendante');

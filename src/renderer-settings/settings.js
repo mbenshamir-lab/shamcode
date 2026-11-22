@@ -155,6 +155,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Agent
     document.getElementById('sm-project-root').value    = cfg?.projectRoot || '';
     document.getElementById('sm-approval-mode').checked = cfg?.approvalMode ?? false;
+  document.getElementById('sm-autonomy-level').value = cfg?.autonomyLevel || 'assisted';
     document.getElementById('sm-multi-agent').checked   = cfg?.multiAgentMode ?? false;
     document.getElementById('sm-max-steps').value       = cfg?.maxSteps ?? 25;
     document.getElementById('sm-retry-parse').value     = cfg?.retryOnParseError ?? 2;
@@ -442,6 +443,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // ── Handlers — Onglet Agent ────────────────────────────────────────────────
   document.getElementById('sm-project-root').addEventListener('blur', e => _autoSave({ projectRoot: e.target.value.trim() || null }));
   document.getElementById('sm-approval-mode').addEventListener('change', e => _autoSave({ approvalMode: e.target.checked }));
+  document.getElementById('sm-autonomy-level').addEventListener('change', e => _autoSave({ autonomyLevel: e.target.value }));
   document.getElementById('sm-multi-agent').addEventListener('change',   e => _autoSave({ multiAgentMode: e.target.checked }));
   document.getElementById('sm-max-steps').addEventListener('change',     e => _autoSave({ maxSteps: parseInt(e.target.value, 10) || 25 }));
   document.getElementById('sm-retry-parse').addEventListener('change',   e => _autoSave({ retryOnParseError: parseInt(e.target.value, 10) || 2 }));

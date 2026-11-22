@@ -34,6 +34,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const engineDot      = document.getElementById('engine-dot');
   const projectLabel   = document.getElementById('project-root-label');
   const messagesEl     = document.getElementById('messages');
+  const chatEmptyEl    = document.getElementById('chat-empty');
   const tokenCounter   = document.getElementById('token-counter');
   const ctxUsageEl     = document.getElementById('ctx-usage');
 
@@ -121,6 +122,21 @@ window.addEventListener('DOMContentLoaded', async () => {
     ctxUsageEl.title = '';
   }
 
+  // ── Préférences d'affichage (repli des colonnes, largeurs) ───────────────
+  // Persistées localement : sinon l'utilisateur ré-ouvre ses panneaux à chaque lancement.
+  const UI_PREFS_KEY = 'sham.ui.prefs';
+
+  function _loadUiPrefs() {
+    try { return JSON.parse(window.localStorage.getItem(UI_PREFS_KEY) || '{}') || {}; }
+    catch { return {}; }
+  }
+
+  function _saveUiPrefs(patch) {
+    try {
+      window.localStorage.setItem(UI_PREFS_KEY, JSON.stringify({ ..._loadUiPrefs(), ...patch }));
+    } catch { /* stockage indisponible : préférences non persistées */ }
+  }
+
   // ── Mode Plan / Action ───────────────────────────────────────────────────
   const btnModePlan   = document.getElementById('btn-mode-plan');
   const btnModeAction = document.getElementById('btn-mode-action');
@@ -129,6 +145,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     _agentMode = mode;
     btnModePlan.classList.toggle('mode-btn-active', mode === 'plan');
     btnModeAction.classList.toggle('mode-btn-active', mode === 'action');
+    btnModePlan.setAttribute('aria-pressed', String(mode === 'plan'));
+    btnModeAction.setAttribute('aria-pressed', String(mode === 'action'));
     // feedback visuel sur le footer
     document.getElementById('input-area').dataset.mode = mode;
     // En mode Action l'agent exécute sans validation → le toggle est neutralisé
@@ -147,6 +165,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     _tddMode = on;
     btnTddToggle.classList.toggle('tdd-on',  on);
     btnTddToggle.classList.toggle('tdd-off', !on);
+    btnTddToggle.setAttribute('aria-pressed', String(on));
     if (!on) {
       btnTddToggle.removeAttribute('data-phase');
       tddToggleLabel.textContent = 'TDD';
@@ -198,6 +217,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       btnApprovalToggle.innerHTML = _lockOpenSvg + '<span id="approval-toggle-label">Auto-apply</span>';
     }
     btnApprovalToggle.classList.toggle('approval-neutral', !applies);
+    btnApprovalToggle.setAttribute('aria-pressed', String(applies && approvalMode));
   }
 
   btnApprovalToggle.addEventListener('click', async () => {
@@ -366,7 +386,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     chip.dataset.name = name;
     chip.innerHTML = `
       <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>
-      <span>${name}</span>
+      <span>${_escHtml(name)}</span>
       <button class="attach-chip-remove" title="Retirer">✕</button>`;
     chip.querySelector('.attach-chip-remove').addEventListener('click', () => {
       _attachedImages = _attachedImages.filter(i => i.name !== name);
@@ -381,7 +401,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     chip.dataset.name = name;
     chip.innerHTML = `
       <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z"/></svg>
-      <span>${name}</span>
+      <span>${_escHtml(name)}</span>
       <button class="attach-chip-remove" title="Retirer">✕</button>`;
     chip.querySelector('.attach-chip-remove').addEventListener('click', () => {
       _attachedFiles = _attachedFiles.filter(f => f.name !== name);
@@ -530,14 +550,33 @@ window.addEventListener('DOMContentLoaded', async () => {
         sItem.innerHTML = `
           <div class="sidebar-item-task">${_escHtml(s.task || '(sans tâche)')}</div>
           <div class="sidebar-item-meta">${date}</div>`;
-        sItem.addEventListener('click', () => _resumeSession(s));
+        // Reprendre une session sans souris (navigation principale du panneau)
+        sItem.setAttribute('role', 'button');
+        sItem.setAttribute('tabindex', '0');
+        const openSession = () => _resumeSession(s);
+        sItem.addEventListener('click', openSession);
+        sItem.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          openSession();
+        });
         body.appendChild(sItem);
       }
 
-      header.addEventListener('click', () => {
+      const toggleWs = () => {
         const nowOpen = header.classList.toggle('ws-open');
         body.classList.toggle('hidden', !nowOpen);
+        header.setAttribute('aria-expanded', String(nowOpen));
         try { sessionStorage.setItem(collapseKey, nowOpen ? '1' : '0'); } catch {}
+      };
+      header.setAttribute('role', 'button');
+      header.setAttribute('tabindex', '0');
+      header.setAttribute('aria-expanded', String(isOpen));
+      header.addEventListener('click', toggleWs);
+      header.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        toggleWs();
       });
 
       sidebarSessions.appendChild(header);
@@ -625,7 +664,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const active    = _activeProviderOf(cfg);
     const model     = active ? (active.model || primary) : (engineCfg.model || primary);
     engineLabel.textContent = model;
-    const hasKey = active ? !!active.apiKey : !!(engineCfg.apiKey || engineCfg.apiKeyEncrypted);
+    // WebLLM et CPU ne demandent aucune clé : ne jamais afficher « Clé manquante ».
+    const localEngine = primary === 'webllm' || primary === 'cpu';
+    const hasKey = active ? !!active.apiKey : (localEngine || !!(engineCfg.apiKey || engineCfg.apiKeyEncrypted));
     engineState.textContent = hasKey ? 'Prêt' : 'Clé manquante';
     engineDot.className = 'engine-dot ' + (hasKey ? 'ready' : 'error');
     const root = cfg?.projectRoot || '';
@@ -732,7 +773,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       currentConfig = updated;
       _renderModelGroups(primary, models, secondary);
     } catch (err) {
-      modelDropdownList.innerHTML = `<div class="model-dropdown-empty">✗ ${err.message}<br><small>Ouvre Paramètres → Modèle → Charger pour mémoriser la liste.</small></div>`;
+      modelDropdownList.innerHTML = `<div class="model-dropdown-empty">✗ ${_escHtml(err.message)}<br><small>Ouvre Paramètres → Modèle → Charger pour mémoriser la liste.</small></div>`;
     }
   }
 
@@ -867,6 +908,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   let _chatTodoCountEl = null;
   let _chatTodoObjective = '';
   let _lastToolIntent  = '';   // intention du dernier outil (briefing du plan)
+let _lastToolName    = '';   // dernier outil exécuté (rendu des médias)
+const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
 
   // ── Plan actif épinglé au-dessus de la zone de saisie ──────────────────────
   const activePlanEl   = document.getElementById('active-plan');
@@ -974,16 +1017,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     const target = _tpPanels[key]?.el;
     if (!target) return;
     const wasExpanded = target.classList.contains('tp-panel-expanded');
-    Object.entries(_tpPanels).forEach(([k, { el }]) => {
+    Object.entries(_tpPanels).forEach(([k, { el, header }]) => {
       if (!el) return;
       if (wasExpanded) {                        // second clic → tout replié
         el.classList.remove('tp-panel-expanded');
         el.classList.add('tp-panel-collapsed');
-        return;
+      } else {
+        const open = k === key;
+        el.classList.toggle('tp-panel-expanded', open);
+        el.classList.toggle('tp-panel-collapsed', !open);
       }
-      const open = k === key;
-      el.classList.toggle('tp-panel-expanded', open);
-      el.classList.toggle('tp-panel-collapsed', !open);
+      // État ouvert/fermé annoncé aux lecteurs d'écran
+      if (header) header.setAttribute('aria-expanded', String(el.classList.contains('tp-panel-expanded')));
     });
   }
 
@@ -996,9 +1041,19 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   Object.entries(_tpPanels).forEach(([key, { el, header }]) => {
     if (!el || !header) return;
+    // En-tête accessible : focusable, activable au clavier, état annoncé.
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+    header.setAttribute('aria-expanded', String(el.classList.contains('tp-panel-expanded')));
     // Au démarrage, les 4 cadres sont repliés (en-têtes seuls) — état posé dans index.html
     header.addEventListener('click', (e) => {
       if (e.target.closest('button')) return; // ignorer les boutons internes
+      _tpToggleExpanded(key);
+    });
+    header.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.closest('button')) return;
+      e.preventDefault();
       _tpToggleExpanded(key);
     });
   });
@@ -1038,7 +1093,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     item.className = `tp-exec-item ${status}`;
     item.innerHTML = `<span class="tp-exec-icon"></span><span class="tp-exec-label">${_escHtml(label)}</span>`;
     _tp.execList.appendChild(item);
-    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    item.scrollIntoView({ behavior: _scrollBehavior(), block: 'nearest' });
   }
 
   function _tpFinish(ok) {
@@ -1059,7 +1114,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   _tpReset();
 
   // ── Resize panels ──────────────────────────────────────────────────────────
-  function _initResizeHandle(handleEl, targetEl, { min, max, fromRight = false }) {
+  function _initResizeHandle(handleEl, targetEl, { min, max, fromRight = false, prefKey = '' }) {
     let startX, startW;
     handleEl.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -1076,6 +1131,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.body.style.userSelect = '';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        // Mémorise la largeur choisie pour les prochains lancements
+        if (prefKey) _saveUiPrefs({ [prefKey]: Math.round(targetEl.getBoundingClientRect().width) });
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
@@ -1086,8 +1143,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   const taskPanelEl = document.getElementById('task-panel');
   const resizeSidebar = document.getElementById('resize-sidebar');
   const resizeTask    = document.getElementById('resize-task');
-  if (resizeSidebar && sidebarEl)   _initResizeHandle(resizeSidebar, sidebarEl,   { min: 160, max: 420 });
-  if (resizeTask    && taskPanelEl) _initResizeHandle(resizeTask,    taskPanelEl, { min: 180, max: 480, fromRight: true });
+  if (resizeSidebar && sidebarEl)   _initResizeHandle(resizeSidebar, sidebarEl,   { min: 160, max: 420, prefKey: 'sidebarWidth' });
+  if (resizeTask    && taskPanelEl) _initResizeHandle(resizeTask,    taskPanelEl, { min: 180, max: 480, fromRight: true, prefKey: 'tpWidth' });
 
   // ── État de repli des colonnes (sidebar + task panel) ────────────────────
   // Aligne la visibilité des poignées sur la classe de repli de chaque colonne.
@@ -1098,6 +1155,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (resizeTask && taskPanelEl) {
       resizeTask.style.display = taskPanelEl.classList.contains('tp-collapsed') ? 'none' : '';
     }
+    // État des boutons de repli pour les lecteurs d'écran (colonne ouverte = true)
+    const tpBtn = document.getElementById('btn-tp-toggle');
+    if (tpBtn && taskPanelEl) tpBtn.setAttribute('aria-expanded', String(!taskPanelEl.classList.contains('tp-collapsed')));
+    const sbBtn = document.getElementById('btn-sidebar-collapse');
+    if (sbBtn && sidebarEl) sbBtn.setAttribute('aria-expanded', String(!sidebarEl.classList.contains('sidebar-collapsed')));
   }
 
   // ── Toggle task panel ────────────────────────────────────────────────────
@@ -1105,13 +1167,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (btnTpToggle && taskPanelEl) {
     btnTpToggle.addEventListener('click', () => {
       taskPanelEl.classList.toggle('tp-collapsed');
+      _saveUiPrefs({ tpCollapsed: taskPanelEl.classList.contains('tp-collapsed') });
       _syncCollapseHandles();
     });
   }
 
-  // Au démarrage, les deux colonnes sont repliées.
-  if (sidebarEl)   sidebarEl.classList.add('sidebar-collapsed');
-  if (taskPanelEl) taskPanelEl.classList.add('tp-collapsed');
+  // Au démarrage : état mémorisé (les deux colonnes sont repliées par défaut).
+  const _uiPrefs = _loadUiPrefs();
+  if (sidebarEl) {
+    if (_uiPrefs.sidebarCollapsed !== false) sidebarEl.classList.add('sidebar-collapsed');
+    if (typeof _uiPrefs.sidebarWidth === 'number') sidebarEl.style.width = `${_uiPrefs.sidebarWidth}px`;
+  }
+  if (taskPanelEl) {
+    if (_uiPrefs.tpCollapsed !== false) taskPanelEl.classList.add('tp-collapsed');
+    if (typeof _uiPrefs.tpWidth === 'number') taskPanelEl.style.width = `${_uiPrefs.tpWidth}px`;
+  }
   _syncCollapseHandles();
 
   // ── Streaming LLM (smart — affiche uniquement le message finish) ─────────
@@ -1119,6 +1189,69 @@ window.addEventListener('DOMContentLoaded', async () => {
   let _streamBuf     = '';      // accumulateur brut de tokens LLM
   let _streamInMsg   = false;   // on est en train d'extraire args.summary
   let _streamMsgOff  = -1;      // offset dans _streamBuf où commence la valeur summary
+  let _streamRaf     = 0;       // rendu coalescé : un seul par frame
+
+  /**
+   * Le scroller du fil est #chat-area (styles.css) : #messages ne défile pas.
+   * On ne défile que si l'utilisateur était déjà en bas — sinon on lui vole sa lecture.
+   */
+  function _chatPinned() {
+    const sc = messagesEl.parentElement;
+    if (!sc) return true;
+    return sc.scrollHeight - sc.scrollTop - sc.clientHeight <= 48;
+  }
+
+  function _chatToBottom() {
+    const sc = messagesEl.parentElement;
+    if (sc) sc.scrollTop = sc.scrollHeight;
+  }
+
+  /**
+   * Ajoute un nœud au fil. `force` défile toujours : réservé aux cartes qui
+   * attendent une action (approbation, plan, question) et ne doivent pas passer inaperçues.
+   */
+  function _appendToChat(el, { force = false } = {}) {
+    const pinned = force || _chatPinned();
+    messagesEl.appendChild(el);
+    _pruneChat();
+    if (pinned) _chatToBottom();
+  }
+
+  // Plafond du fil : sur une session d'une journée, des milliers de nœuds rendent
+  // chaque reflow et chaque scroll de plus en plus coûteux.
+  const MAX_CHAT_MESSAGES = 300;
+
+  function _pruneChat() {
+    const msgs = [...messagesEl.children].filter((el) => el.classList.contains('message'));
+    if (msgs.length <= MAX_CHAT_MESSAGES) return;
+    for (let i = 0; i < msgs.length - MAX_CHAT_MESSAGES; i++) {
+      if (msgs[i] === _streamDiv) continue;   // jamais le bloc en cours d'écriture
+      msgs[i].remove();
+    }
+  }
+
+  /** 'auto' si l'utilisateur a demandé moins d'animations (WCAG 2.3.3). */
+  function _scrollBehavior() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto' : 'smooth';
+  }
+
+  /**
+   * Décode une chaîne JSON partielle (tokens de streaming) en une seule passe.
+   * L'ancien enchaînement `\n` puis `\\` transformait `C:\new\table.txt` en saut
+   * de ligne : `\\` doit être traité avec le caractère qu'il échappe.
+   */
+  function _decodeStreamString(raw) {
+    return String(raw).replace(/\\(u[0-9a-fA-F]{4}|.)/g, (_m, c) => {
+      if (c === 'n') return '\n';
+      if (c === 't') return '\t';
+      if (c === 'r') return '\r';
+      if (c === '"') return '"';
+      if (c === '/') return '/';
+      if (c === '\\') return '\\';
+      return c[0] === 'u' ? String.fromCharCode(parseInt(c.slice(1), 16)) : c;
+    });
+  }
 
   // Extrait le texte visible du message finish depuis un buffer brut de tokens LLM.
   // Retourne null si le buffer ne contient pas encore un appel finish avec summary.
@@ -1128,12 +1261,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!m) return null;
     const raw = buf.slice(m.index + m[0].length);
     const endMatch = raw.match(/(?<!\\)"/);
-    const visible = endMatch ? raw.slice(0, endMatch.index) : raw;
-    return visible
-      .replace(/\\n/g,  '\n')
-      .replace(/\\t/g,  '\t')
-      .replace(/\\"/g,  '"')
-      .replace(/\\\\/g, '\\');
+    return _decodeStreamString(endMatch ? raw.slice(0, endMatch.index) : raw);
   }
 
   function _appendStreamToken(token) {
@@ -1146,30 +1274,43 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    if (_streamInMsg && _streamMsgOff >= 0) {
-      const raw = _streamBuf.slice(_streamMsgOff);
-      const endMatch = raw.match(/(?<!\\)"/);
-      const visible = endMatch ? raw.slice(0, endMatch.index) : raw;
-      const decoded = visible
-        .replace(/\\n/g,  '\n')
-        .replace(/\\t/g,  '\t')
-        .replace(/\\"/g,  '"')
-        .replace(/\\\\/g, '\\');
+    if (_streamInMsg && _streamMsgOff >= 0) _scheduleStreamRender();
+  }
 
-      if (decoded) {
-        if (!_streamDiv) {
-          _clearWelcome();
-          _streamDiv = document.createElement('div');
-          _streamDiv.className = 'message message-streaming';
-          messagesEl.appendChild(_streamDiv);
-        }
-        _streamDiv.textContent = decoded;
-        _streamDiv.scrollIntoView({ behavior: 'smooth' });
-      }
+  function _scheduleStreamRender() {
+    if (_streamRaf) return;
+    _streamRaf = requestAnimationFrame(() => {
+      _streamRaf = 0;
+      _renderStreamText();
+    });
+  }
+
+  function _renderStreamText() {
+    if (!_streamInMsg || _streamMsgOff < 0) return;
+    const raw = _streamBuf.slice(_streamMsgOff);
+    const endMatch = raw.match(/(?<!\\)"/);
+    const decoded = _decodeStreamString(endMatch ? raw.slice(0, endMatch.index) : raw);
+    if (!decoded) return;
+
+    const pinned = _chatPinned();
+    if (!_streamDiv) {
+      _clearWelcome();
+      _streamDiv = document.createElement('div');
+      _streamDiv.className = 'message message-streaming';
+      // Le fil est en aria-live : le flux token par token ne doit pas inonder le lecteur
+      // d'écran. Le message final (rendu markdown) sera annoncé, lui.
+      _streamDiv.setAttribute('aria-live', 'off');
+      messagesEl.appendChild(_streamDiv);
     }
+    if (_streamDiv.textContent !== decoded) _streamDiv.textContent = decoded;
+    // Le bloc de stream a son propre scroll (max-height 240px) : les derniers
+    // tokens restent visibles sans ré-épingler le haut du bloc à chaque frame.
+    _streamDiv.scrollTop = _streamDiv.scrollHeight;
+    if (pinned) _chatToBottom();
   }
 
   function _clearStreamDiv() {
+    if (_streamRaf) { cancelAnimationFrame(_streamRaf); _streamRaf = 0; }
     if (_streamDiv) { _streamDiv.remove(); _streamDiv = null; }
     _streamBuf    = '';
     _streamInMsg  = false;
@@ -1179,6 +1320,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // ── Événements agent ──────────────────────────────────────────────────────
   try {
     window.harness.onAgentEvent((event) => {
+      // Un événement partiel (champ manquant) ne doit pas casser le rendu des suivants.
+      try {
       if (event.type === 'llm_token') {
         _appendStreamToken(event.token);
       } else if (event.type === 'thinking') {
@@ -1190,6 +1333,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       } else if (event.type === 'tool_call') {
         // Ne pas effacer la div finish — le message stream doit rester visible
         if (event.tool !== 'finish') _clearStreamDiv();
+        _lastToolName = event.tool || '';
         _lastToolIntent = event.intent || '';
         _activityStep(event.tool, event.args, event.intent);
         _tpAddExecStep(_toolLabel(event.tool, event.args));
@@ -1197,6 +1341,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       } else if (event.type === 'parse_error') {
         _clearStreamDiv();
         _activityParseRetry();
+      } else if (event.type === 'tool_result' && event.result?.ok) {
+        _maybeAppendToolMedia(event);
       } else if (event.type === 'tool_result' && event.result && !event.result.ok) {
         _activityError(event.result.error);
         _tpAddExecStep(event.result.error?.slice(0, 40) || 'Erreur', 'error');
@@ -1247,6 +1393,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         _updateTddPhase(event.phase);
       } else if (event.type === 'cancelled') {
         _clearStreamDiv();
+        _cancelPendingCards();
         _orchCancel();
         _activityCancel();
         _tpFinish(false);
@@ -1263,6 +1410,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (event.inputTokens) _updateContextUsage(event.inputTokens, event.engine);
       }
       // session_start, context_ready, agents_loaded → silencieux
+      } catch { /* événement partiel : ignorer sans bloquer la suite */ }
     });
   } catch { /* indisponible */ }
 
@@ -1339,14 +1487,36 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Ctrl+L (ou Cmd+L) → efface le chat (uniquement si pas de tâche en cours)
+  // Ctrl+L (ou Cmd+L) → place le curseur dans la saisie (cf. indice de l'état vide).
+  // Ctrl+Maj+L → efface la conversation, après confirmation (action destructive).
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'l' && btnSend && !btnSend.disabled) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    if (e.key !== 'l' && e.key !== 'L') return;
+    if (e.shiftKey) {
+      if (_isRunning || (btnSend && btnSend.disabled)) return;
+      if (!messagesEl.querySelector('.message, .chat-todo, .run-strip, .activity-block')) return;
+      if (typeof window.confirm === 'function'
+          && !window.confirm('Effacer toute la conversation affichée ? Le contexte des échanges sera perdu.')) return;
       e.preventDefault();
-      messagesEl.innerHTML = '';
+      [...messagesEl.children].forEach((n) => { if (n !== chatEmptyEl) n.remove(); });
+      if (chatEmptyEl && !chatEmptyEl.isConnected) messagesEl.appendChild(chatEmptyEl);
+      _planPinHide();
       _chatHistory = [];
       _updateContextBadge();
+      return;
     }
+    e.preventDefault();
+    taskInput.focus();
+    taskInput.select();
+  });
+
+  // État vide : les suggestions remplissent la saisie (elles n'avaient aucun handler).
+  chatEmptyEl?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chat-empty-suggestion');
+    if (!btn) return;
+    taskInput.value = btn.textContent.trim();
+    taskInput.dispatchEvent(new Event('input'));
+    taskInput.focus();
   });
 
   // Auto-resize textarea
@@ -1662,8 +1832,16 @@ window.addEventListener('DOMContentLoaded', async () => {
       _slashActiveIdx = (_slashActiveIdx - 1 + filtered.length) % filtered.length;
       _slashShow(filtered);
     } else if (e.key === 'Tab' || (e.key === 'Enter' && filtered.length)) {
-      if (filtered.length) { e.preventDefault(); _slashSelect(filtered[_slashActiveIdx]); }
+      if (filtered.length) {
+        e.preventDefault();
+        // Sans cela, le handler « Entrée → sendTask » envoie le texte nu
+        // (« /add_rule ») au LLM au lieu de compléter la commande.
+        e.stopImmediatePropagation();
+        _slashSelect(filtered[_slashActiveIdx]);
+      }
     } else if (e.key === 'Escape') {
+      // Fermer le menu ne doit pas annuler le run en cours (handler bulle).
+      e.stopImmediatePropagation();
       _slashHide();
     }
   }, true); // capture phase : avant le handler "Enter → sendTask"
@@ -1695,6 +1873,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     let   task            = _buildTaskWithContext(taskWithFiles);
     _clearWelcome();
     _tpReset();
+    _mediaCardSeen.clear();   // une image régénérée doit réapparaître dans le fil
     // Réinitialiser le compteur de tokens pour la nouvelle session
     tokenCounter.classList.add('hidden');
     tokenCounter.textContent = '';
@@ -1706,6 +1885,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       ? ` *(${_attachedFiles.length} fichier${_attachedFiles.length > 1 ? 's' : ''} joint${_attachedFiles.length > 1 ? 's' : ''})*`
       : '';
     _appendUserMessage(rawTask + attachSuffix);
+    // Copie avant nettoyage : _clearAttachments() vide le tableau, et les images
+    // doivent partir avec le run (elles étaient systématiquement perdues).
+    const runImages = _attachedImages.map(({ name, base64, mimeType }) => ({ name, base64, mimeType }));
     _clearAttachments();
     taskInput.value = '';
     taskInput.style.height = 'auto';
@@ -1725,7 +1907,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (prevContext) task = `${prevContext}\n\n${task}`;
     let taskOk = false;
     try {
-      const images = _attachedImages.length > 0 ? _attachedImages.map(({ name, base64, mimeType }) => ({ name, base64, mimeType })) : undefined;
+      const images = runImages.length > 0 ? runImages : undefined;
       if (_tddMode) _updateTddPhase('red');
       const response = await window.harness.runAgent({ task, projectRoot, approvalMode: approvalForRun, multiAgentMode, planMode, tddMode: _tddMode, images });
       taskOk = !!response.ok;
@@ -1822,7 +2004,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>
       <span>Pas de <strong>AGENTS.md</strong> — l'agent le créera automatiquement à la fin de la prochaine tâche.</span>`;
     messagesEl.appendChild(hint);
-    hint.scrollIntoView({ behavior: 'smooth' });
+    hint.scrollIntoView({ behavior: _scrollBehavior() });
     // Se ferme automatiquement après 5 secondes
     setTimeout(() => hint.remove(), 5000);
   }
@@ -1832,8 +2014,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     div.className = 'message message-user';
     div.style.whiteSpace = 'pre-wrap';
     div.textContent = text;
-    messagesEl.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(div);
   }
 
   // Coloration syntaxique légère — tokenise sans dépendance externe
@@ -1860,7 +2041,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Fichiers du projet évoqués dans le chat → liens colorés et cliquables ──
-  const _FILE_EXT = 'js|ts|jsx|tsx|py|go|rs|java|cs|rb|php|html|css|scss|json|yml|yaml|md|txt|sh|bat|toml|xml|csv|env|ini|cfg|sql|vue|svelte|lock';
+  const _FILE_EXT = 'js|ts|jsx|tsx|py|go|rs|java|cs|rb|php|html|css|scss|json|yml|yaml|md|txt|sh|bat|toml|xml|csv|env|ini|cfg|sql|vue|svelte|lock|png|jpe?g|gif|webp|avif|bmp|svg|ico|mp4|webm|mov|m4v|ogv';
   const _FILE_LINK_RE = new RegExp(
     `(?<![\\w/.\\-])((?:[\\w.\\-]+[\\\\/])*[\\w.\\-]+\\.(?:${_FILE_EXT}))(?::(\\d+))?`,
     'g',
@@ -1868,7 +2049,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   /** Transforme les chemins de fichiers d'un fragment de texte en liens cliquables. */
   function _linkifyText(text) {
-    return String(text).replace(_FILE_LINK_RE, (match, filePath, line) => {
+    // Markdown image : ![alt](chemin) → média si le chemin est un média du projet.
+    const withMedia = String(text).replace(
+      /!\[([^\]]*)\]\(([^)]+)\)/g,
+      (match, alt, p) => _mediaElement(p, alt) || match,
+    );
+    return withMedia.replace(_FILE_LINK_RE, (match, filePath, line) => {
+      const media = _mediaElement(filePath);
+      if (media) return media;
       const pathAttr = _escAttr(filePath);
       const lineAttr = line ? ` data-line="${_escAttr(line)}"` : '';
       const label    = line ? `${filePath}:${line}` : filePath;
@@ -1888,6 +2076,64 @@ window.addEventListener('DOMContentLoaded', async () => {
           .join('');
       })
       .join('');
+  }
+
+  function _mediaApi() {
+    return (typeof window !== 'undefined' && window.ShamMedia) || null;
+  }
+
+  // ── Médias du projet (images / vidéos) ─────────────────────────────────────
+  // Le renderer ne lit pas le disque : il construit une URL file:// confinée au
+  // projectRoot (window.ShamMedia refuse absolu, .. et protocoles distants).
+  function _mediaElement(relPath, alt = '') {
+    const M = _mediaApi();
+    if (!M) return '';
+    const rel  = M.safeRel(relPath);
+    const kind = rel ? M.kindOf(rel) : '';
+    const url  = rel ? M.fileUrl(rel, currentConfig?.projectRoot) : '';
+    if (!kind || !url) return '';
+
+    const label = _escHtml(alt || rel.split('/').pop());
+    const open  = `<button class="media-open" type="button" data-path="${_escAttr(rel)}" title="Ouvrir ${_escAttr(rel)}">Ouvrir</button>`;
+    const body  = kind === 'image'
+      ? `<img src="${_escAttr(url)}" alt="${_escAttr(alt || rel)}" loading="lazy" />`
+      : `<video src="${_escAttr(url)}" controls preload="metadata"></video>`;
+    return `<span class="md-media"><span class="md-media-frame">${body}</span>` +
+      `<span class="md-media-caption"><span class="md-media-name">${label}</span>${open}</span></span>`;
+  }
+
+  /** Ajoute une carte média autonome dans le fil (résultat d'outil). */
+  function _appendMediaCard(relPath, caption = '') {
+    const html = _mediaElement(relPath, caption);
+    if (!html) return false;
+    const el = document.createElement('div');
+    el.className = 'message message-media';
+    el.innerHTML = html;
+    el.querySelector('.media-open')?.addEventListener('click', () => _openFile(relPath));
+    messagesEl.appendChild(el);
+    el.scrollIntoView({ block: 'nearest', behavior: _scrollBehavior() });
+    return true;
+  }
+
+  const _MEDIA_TOOLS = new Set(['generate_image', 'generate_video', 'browser_screenshot', 'merge_videos']);
+
+  /** Après un outil média, affiche le fichier produit sans attendre le résumé. */
+  function _maybeAppendToolMedia(event) {
+    if (!_MEDIA_TOOLS.has(_lastToolName)) return;
+    const M = _mediaApi();
+    if (!M) return;
+
+    const text  = [event.result?.content, event.result?.path, event.result?.file].filter(Boolean).join(' ');
+    const found = M.findMediaPath(text);
+    if (!found) return;
+
+    const rel = M.safeRel(found);
+    if (!rel || !M.kindOf(rel)) return;
+    const key = `${event.step}:${rel}`;
+    if (_mediaCardSeen.has(key)) return;
+    _mediaCardSeen.add(key);
+
+    _appendMediaCard(rel, M.kindOf(rel) === 'video' ? 'Vidéo générée' : 'Image générée');
   }
 
   /**
@@ -2133,6 +2379,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Clic sur un fichier du projet évoqué dans la réponse → visionneuse
     body.addEventListener('click', (e) => {
+      const mediaBtn = e.target.closest('.media-open');
+      if (mediaBtn) { _openFile(mediaBtn.dataset.path); return; }
       const link = e.target.closest('.file-link');
       if (link) _openFile(link.dataset.path, Number(link.dataset.line) || null);
     });
@@ -2163,7 +2411,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         `</span>`
       ).join('');
       const more = hidden.length
-        ? `<span class="tf-more" title="${hidden.map(f => f.path).join('\n')}" `+
+        ? `<span class="tf-more" title="${_escAttr(hidden.map(f => f.path).join('\n'))}" `+
           `onclick="this.parentElement.classList.toggle('tf-expanded')">`+
           `+${hidden.length}</span>`+
           `<span class="tf-hidden">${hidden.map(f =>
@@ -2200,8 +2448,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       div.appendChild(suggBar);
     }
 
-    messagesEl.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(div);
   }
 
   // ── Plan dans le chat : toujours plié (une ligne), dépliable au clic ───────
@@ -2277,9 +2524,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
     head.addEventListener('click', () => setExpanded(!expanded));
 
+    const pinned = _chatPinned();
     messagesEl.appendChild(_chatTodoEl);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
     _activityToBottom();   // la ligne d'action en cours reste sous le plan plié
+    if (pinned) _chatToBottom();
 
     _advanceChatTodo(false);
   }
@@ -2301,9 +2549,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   function _finalizeChatTodo(ok) {
     if (!_chatTodoItems.length) return;
-    // Toutes les étapes sont exécutées — la ligne reste pliée dans le chat
-    _chatTodoItems.forEach(li => { li.className = 'chat-todo-item done'; });
-    _chatTodoStepIdx = _chatTodoItems.length;
+    // En échec/annulation, ne pas prétendre que toutes les étapes ont été faites :
+    // seules celles réellement atteintes passent « done », les autres restent en attente.
+    _chatTodoItems.forEach((li, i) => {
+      if (ok || i < _chatTodoStepIdx) li.className = 'chat-todo-item done';
+      else li.className = 'chat-todo-item pending';
+    });
+    if (ok) _chatTodoStepIdx = _chatTodoItems.length;
     _syncChatTodoCount();
     _tpSyncPlanProgress();
     if (!_chatTodoEl) return;
@@ -2535,7 +2787,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     _activityRender();
     _activityToBottom();   // l'action en cours reste la dernière ligne du chat
-    _activityBlock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    _activityBlock.scrollIntoView({ behavior: _scrollBehavior(), block: 'nearest' });
   }
 
   /** Garde la ligne d'activité en bas de la conversation (dernier élément). */
@@ -2579,16 +2831,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     const div = document.createElement('div');
     div.className = 'message message-info';
     div.textContent = text;
-    messagesEl.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(div);
   }
 
   function _appendSystemMessage(text) {
     const div = document.createElement('div');
     div.className = 'message message-system';
     div.textContent = text;
-    messagesDiv.appendChild(div);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    _appendToChat(div);
   }
 
   function appendErrorMessage(rawError) {
@@ -2626,8 +2876,23 @@ window.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', _openSettings);
       div.appendChild(btn);
     }
-    messagesEl.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth' });
+    // Relancer la dernière tâche sans la retaper (le message d'erreur reste lisible)
+    if (_lastSentTask && !_isRunning) {
+      const retry = document.createElement('button');
+      retry.className = 'error-action error-action-secondary';
+      retry.textContent = '↻ Réessayer';
+      retry.title = `Relancer : « ${_lastSentTask.slice(0, 80)}… »`;
+      retry.addEventListener('click', () => {
+        if (_isRunning) return;
+        retry.disabled = true;
+        taskInput.value = _lastSentTask;
+        taskInput.dispatchEvent(new Event('input'));
+        taskInput.focus();
+        sendTask();
+      });
+      div.appendChild(retry);
+    }
+    _appendToChat(div);
   }
 
   // ── Bandeaux d'activité regroupée ────────────────────────────────────────
@@ -2688,17 +2953,20 @@ window.addEventListener('DOMContentLoaded', async () => {
   function _stripPush(kind, entry) {
     const st = _stripOpen(kind);
     st.entries.push(entry);
+    // Un run qui touche des centaines de fichiers ne doit pas construire autant
+    // de diffs à la fermeture : on ne garde que les dernières entrées.
+    if (st.entries.length > 50) st.entries.splice(0, st.entries.length - 50);
     st.count += 1;
     const meta = st.head.querySelector('.run-strip-meta');
     if (meta) meta.textContent = _runStripMeta(kind, entry);
     const count = st.head.querySelector('.run-strip-count');
     if (count) count.textContent = String(st.count);
     _activityToBottom();   // le bandeau d'écriture ne passe pas sous l'action en cours
-    st.el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    st.el.scrollIntoView({ behavior: _scrollBehavior(), block: 'nearest' });
   }
 
   /** Liste dépliable des événements regroupés. */
-  function _buildStripItems(kind, entries) {
+  function _buildStripItems(kind, entries, total = entries.length) {
     if (!entries.length) return null;
     const ul = document.createElement('ul');
     ul.className = 'run-strip-items';
@@ -2730,6 +2998,12 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
       ul.appendChild(li);
     }
+    if (total > entries.length) {
+      const more = document.createElement('li');
+      more.className = 'run-strip-more';
+      more.textContent = `+ ${total - entries.length} entrée(s) plus ancienne(s) non listée(s)`;
+      ul.appendChild(more);
+    }
     return ul;
   }
 
@@ -2755,7 +3029,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     icon.textContent = ok ? '✓' : '✕';
     head.insertBefore(icon, head.firstChild);
 
-    const items = _buildStripItems(kind, st.entries);
+    const items = _buildStripItems(kind, st.entries, st.count);
     if (items) {
       items.classList.add('hidden');
       st.el.appendChild(items);
@@ -2929,8 +3203,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     const icon        = isDelete ? '🗑' : isMove ? '📁' : '⚠';
     header.innerHTML = `
       <span class="approval-icon">${icon}</span>
-      <span class="approval-title">${actionLabel}</span>
-      <code class="approval-path">${filePath}</code>
+      <span class="approval-title">${_escHtml(actionLabel)}</span>
+      <code class="approval-path">${_escHtml(filePath)}</code>
       <span style="margin-left:8px;font-size: var(--text-2xs)"><span style="color:var(--diff-add)">+${additions}</span> <span style="color:var(--diff-del)">-${deletions}</span></span>
     `;
     card.appendChild(header);
@@ -2963,8 +3237,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     actions.appendChild(btnAccept);
     card.appendChild(actions);
 
-    messagesEl.appendChild(card);
-    card.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(card, { force: true });   // l'utilisateur doit la voir pour répondre
   }
 
   function _collapsePlanCard(card, objEl, actionsEl, statusLabel) {
@@ -3013,8 +3286,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     actions.appendChild(btnAccept);
     card.appendChild(actions);
 
-    messagesEl.appendChild(card);
-    card.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(card, { force: true });   // validation de plan : action attendue
   }
 
   // ── Ask user card ─────────────────────────────────────────────────────────
@@ -3090,9 +3362,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     inputRow.appendChild(btn);
     card.appendChild(inputRow);
 
-    messagesEl.appendChild(card);
-    card.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(card, { force: true });   // question de l'agent : action attendue
     setTimeout(() => input.focus(), 50);
+  }
+
+  // ── Annulation : plus aucune carte ne doit attendre une réponse ──────────
+  // Sans ça, après « Stop » les cartes d'approbation/plan/question restaient
+  // actives et un clic envoyait une réponse à un run déjà terminé.
+  function _cancelPendingCards() {
+    messagesEl.querySelectorAll(
+      '.approval-card:not(.accepted):not(.rejected), .plan-card:not(.plan-done), .ask-card:not(.ask-card-done)',
+    ).forEach((card) => {
+      if (card.classList.contains('card-cancelled')) return;
+      card.classList.add('card-cancelled');
+      card.querySelectorAll('button, input, textarea').forEach((el) => { el.disabled = true; });
+      const tag = document.createElement('div');
+      tag.className = 'card-cancelled-tag';
+      tag.textContent = '⏹ Annulé';
+      card.appendChild(tag);
+    });
   }
 
   // ── Note inline (trouvaille agent) ───────────────────────────────────────
@@ -3134,8 +3422,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const bodyEl = card.querySelector('.subagent-body');
     _subAgentCards.set(key, { card, bodyEl, stepCount: 0 });
-    messagesEl.appendChild(card);
-    card.scrollIntoView({ behavior: 'smooth' });
+    _appendToChat(card);
   }
 
   function _updateSubAgentCard(event) {
@@ -3168,7 +3455,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       cur.dataset.label = label;
       cur.innerHTML = `<span class="sa-spinner"></span>${_escHtml(label)}`;
       bodyEl.appendChild(cur);
-      bodyEl.scrollIntoView({ behavior: 'smooth' });
+      bodyEl.scrollIntoView({ behavior: _scrollBehavior() });
 
     } else if (subEvent.type === 'parse_error') {
       // silencieux — retry transparent dans les sous-agents aussi
@@ -3234,9 +3521,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       <div class="orch-footer"></div>
     `;
     _orchState = { card, totalPhases: event.totalPhases || 0, doneCount: 0, rows: new Map() };
-    messagesEl.appendChild(card);
+    _appendToChat(card);
     _orchRefreshCounter();
-    card.scrollIntoView({ block: 'nearest' });
   }
 
   function _orchRefreshCounter() {
@@ -3398,6 +3684,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Toutes les sections démarrent fermées en mode flyout
     body.classList.add('collapsed');
     btn.classList.remove('active');
+    btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = !body.classList.contains('collapsed');
@@ -3405,6 +3692,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       _snavPanels.forEach(({ btn: b, body: bo }) => {
         bo.classList.add('collapsed');
         b.classList.remove('active');
+        b.setAttribute('aria-expanded', 'false');
       });
       if (isOpen) return;
       // Positionne et ouvre le flyout
@@ -3415,6 +3703,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       body.style.top  = Math.min(bRect.top, window.innerHeight - body.offsetHeight - 12) + 'px';
       body.classList.remove('collapsed');
       btn.classList.add('active');
+      btn.setAttribute('aria-expanded', 'true');
       // Recale si le panel dépasse en bas après le rendu
       requestAnimationFrame(() => {
         const panelH = body.offsetHeight;
@@ -3754,6 +4043,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   function _fvRender(key, line) {
     const entry = _fvFiles.get(key);
     if (!entry || !fvContentEl) return;
+
+    if (entry.media) {
+      const url = _mediaApi()?.fileUrl(entry.media, currentConfig?.projectRoot) || '';
+      if (!url) {
+        fvContentEl.textContent = '⚠ Média hors projet ou introuvable';
+        _fvSetEmpty(false);
+        return;
+      }
+      const src = _escAttr(url);
+      const alt = _escAttr(entry.media);
+      fvContentEl.innerHTML = entry.mediaKind === 'image'
+        ? `<div class="fv-media-wrap"><img class="fv-media" src="${src}" alt="${alt}" /></div>`
+        : `<div class="fv-media-wrap"><video class="fv-media" src="${src}" controls preload="metadata"></video></div>`;
+      _fvSetEmpty(false);
+      return;
+    }
+
     const lang = _langFromPath(key);
     if (entry.content == null) {
       fvContentEl.textContent = 'Chargement…';
@@ -3803,6 +4109,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!fileViewerEl || !filePath) return;
     const key = String(filePath).replace(/^\.\//, '').replace(/\\/g, '/');
     fileViewerEl.classList.remove('hidden');
+    // Focus posé dans la visionneuse : sinon Tab/Échap restent sur la page derrière.
+    fileViewerEl.focus();
 
     if (_fvFiles.has(key)) { _fvActivate(key, line); return; }
 
@@ -3811,16 +4119,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     tab.dataset.path = key;
     tab.title = key;
     tab.innerHTML = `<span class="fv-tab-name">${_escHtml(key.split('/').pop())}</span>` +
-      `<span class="fv-tab-close" title="Fermer">✕</span>`;
+      `<button type="button" class="fv-tab-close" title="Fermer" aria-label="Fermer l'onglet">✕</button>`;
     tab.addEventListener('click', (e) => {
       if (e.target.closest('.fv-tab-close')) { _fvCloseTab(key); return; }
       _fvActivate(key);
     });
     fvTabsEl.appendChild(tab);
 
-    const entry = { tab, content: null, error: false };
+    const mediaKind = _mediaApi()?.kindOf(key) || '';
+    const entry = { tab, content: null, error: false, media: mediaKind ? key : null, mediaKind };
     _fvFiles.set(key, entry);
     _fvActivate(key, line);
+    if (entry.media) return; // image/vidéo : pas de lecture texte
 
     try {
       const res = await window.harness.readProjectFile(key);
@@ -3843,6 +4153,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   fvCloseEl?.addEventListener('click', _fvHide);
+
+  // Échap ferme la visionneuse : au clavier, elle ne pouvait pas être quittée.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !fileViewerEl || fileViewerEl.classList.contains('hidden')) return;
+    e.preventDefault();
+    _fvHide();
+  });
 
   // Déplacement de la fenêtre par son en-tête
   (function _initFvDrag() {
@@ -3874,6 +4191,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const btnCollapse = document.getElementById('btn-sidebar-collapse');
   btnCollapse.addEventListener('click', () => {
     sidebarEl.classList.toggle('sidebar-collapsed');
+    _saveUiPrefs({ sidebarCollapsed: sidebarEl.classList.contains('sidebar-collapsed') });
     _syncCollapseHandles();
   });
 
@@ -3883,17 +4201,29 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // btn-search-session affiche/masque la barre de recherche
   document.getElementById('btn-search-session')?.addEventListener('click', () => {
+    // En sidebar repliée la barre est en display:none (styles.css) : on déplie d'abord,
+    // sinon le clic ne produit rien de visible et le focus part sur un champ caché.
+    if (sidebarEl?.classList.contains('sidebar-collapsed')) {
+      sidebarEl.classList.remove('sidebar-collapsed');
+      _saveUiPrefs({ sidebarCollapsed: false });
+      _syncCollapseHandles();
+    }
     sbSearchWrap.classList.toggle('hidden');
     if (!sbSearchWrap.classList.contains('hidden')) sbSearchInput.focus();
     else { sbSearchInput.value = ''; _renderSessionList(_allSessions); }
   });
 
+  // Le rendu reconstruit la liste entière : on temporise la frappe (120 ms).
+  let _sessionSearchTimer = 0;
   sbSearchInput.addEventListener('input', () => {
-    const q = sbSearchInput.value.trim().toLowerCase();
-    if (!q) { _renderSessionList(_allSessions); return; }
-    _renderSessionList(_allSessions.filter(s =>
-      (s.task || '').toLowerCase().includes(q)
-    ));
+    clearTimeout(_sessionSearchTimer);
+    _sessionSearchTimer = setTimeout(() => {
+      const q = sbSearchInput.value.trim().toLowerCase();
+      if (!q) { _renderSessionList(_allSessions); return; }
+      _renderSessionList(_allSessions.filter(s =>
+        (s.task || '').toLowerCase().includes(q)
+      ));
+    }, 120);
   });
 
   sbSearchInput.addEventListener('keydown', e => {
@@ -3906,6 +4236,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ── Reprise de session (légère) ──────────────────────────────────────────
   async function _resumeSession(sessionSummary) {
+    // Un run en cours écrirait dans des nœuds détachés par le vidage du fil.
+    if (_isRunning) return;
     // Charger la session complète
     let session = null;
     try {
@@ -3923,6 +4255,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Remettre le chat à zéro et afficher le résumé de la session reprise
     messagesEl.innerHTML = '';
     _agentsHintShown = false;
+    _chatHistory = [];   // sinon le contexte de l'ancien sujet est réinjecté
+    _updateContextBadge();
     if (s.task) _appendUserMessage(s.task);
     if (s.result?.summary) {
       _appendAgentMessage(`✓ ${s.result.summary}`);
@@ -4095,6 +4429,22 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   btnSessionsClose.addEventListener('click', () => sessionsDialog.close());
 
+  // Le dialogue n'avait aucun point d'entrée (code mort côté UI) : l'en-tête
+  // « Workspace » de la sidebar l'ouvre, avec la liste complète des sessions.
+  const sessionsHeaderEl = document.querySelector('.sidebar-sessions-header');
+  function _openSessionsDialog() {
+    if (sessionsDialog.open) return;
+    _renderSessionsDialog(_allSessions);
+    if (typeof sessionsDialog.showModal === 'function') sessionsDialog.showModal();
+    else sessionsDialog.setAttribute('open', '');
+  }
+  sessionsHeaderEl?.addEventListener('click', _openSessionsDialog);
+  sessionsHeaderEl?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    _openSessionsDialog();
+  });
+
   function _renderSessionsDialog(sessions) {
     if (!sessions || sessions.length === 0) {
       sessionsList.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Aucune session enregistrée.</p>';
@@ -4107,7 +4457,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       item.className = `session-item ${ok ? 'ok' : 'fail'}`;
       const date = new Date(s.createdAt).toLocaleString('fr-FR');
       item.innerHTML = `
-        <div class="session-task">${s.task || '(sans tâche)'}</div>
+        <div class="session-task">${_escHtml(s.task || '(sans tâche)')}</div>
         <div class="session-meta">${date} — ${s.steps?.length || 0} étape(s) — ${ok ? '✓' : '✗'}</div>
       `;
 
@@ -4214,7 +4564,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       info.className = 'ca-item-info';
       const latency = app.latency_ms != null ? `${app.latency_ms}ms · ` : '';
       info.innerHTML = `
-        <span class="ca-item-name" title="${app.url}">${app.name}</span>
+        <span class="ca-item-name" title="${_escAttr(app.url)}">${_esc(app.name)}</span>
         <span class="ca-item-detail">${latency}${_relativeTime(app.lastCheck)}</span>`;
 
       // Bouton supprimer
@@ -4266,27 +4616,31 @@ window.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => { btnAppsPing.style.opacity = ''; }, 800);
   });
 
-  // Mise à jour de l'horodatage "il y a X s" toutes les 10s
-  setInterval(() => {
-    const items = appsListEl.querySelectorAll('.ca-item');
-    items.forEach(item => {
-      const detail = item.querySelector('.ca-item-detail');
-      if (detail) {
-        const text = detail.textContent;
-        // le texte "il y a Xs" change naturellement — pas de re-render complet
-      }
-    });
-  }, 10_000);
-
   // ── PANNEAU PROCESSUS ACTIFS ─────────────────────────────────────────────
 
   const procsListEl  = document.getElementById('procs-list');
   const procsBadgeEl = document.getElementById('procs-badge');
 
+  // La liste est re-rendue à chaque chunk stdout/stderr du harness (_notify) :
+  // sans coalescence, un serveur bavard provoque des centaines de re-rendus/s.
+  let _procsRaf     = 0;
+  let _procsPending = null;
+  let _procsSig     = '';
+
   function _renderProcs(procs) {
+    _procsPending = procs;
+    if (_procsRaf) return;
+    _procsRaf = requestAnimationFrame(() => {
+      _procsRaf = 0;
+      _renderProcsNow(_procsPending);
+    });
+  }
+
+  function _renderProcsNow(procs) {
     if (!procs || procs.length === 0) {
       procsListEl.innerHTML = '<div class="pr-empty"><span>Aucun processus</span></div>';
       if (procsBadgeEl) { procsBadgeEl.textContent = '0'; procsBadgeEl.classList.add('hidden'); }
+      _procsSig = '';
       return;
     }
 
@@ -4299,28 +4653,33 @@ window.addEventListener('DOMContentLoaded', async () => {
       procsBadgeEl.classList.toggle('hidden', running === 0);
     }
 
+    const sig = procs.map(p => `${p.pid || p.name}:${p.status}`).join('|');
+    if (sig === _procsSig) return;   // seule la sortie stdout a changé
+    _procsSig = sig;
+
     procsListEl.innerHTML = procs.map(p => {
       const dot   = `<span class="pr-dot ${p.status}" title="${_procStatusLabel(p.status)}"></span>`;
       const name  = `<span class="pr-name" title="${_esc(p.command)}">${_esc(p.name)}</span>`;
-      const cmd   = `<span class="pr-cmd">${_esc(p.command.slice(0, 30))}</span>`;
+      const cmd   = `<span class="pr-cmd">${_esc((p.command || '').slice(0, 30))}</span>`;
       const kill  = p.status === 'running'
-        ? `<button class="pr-kill" data-name="${_esc(p.name)}" title="Arrêter">✕</button>`
+        ? `<button class="pr-kill" data-name="${_esc(p.name)}" title="Arrêter le processus" aria-label="Arrêter ${_esc(p.name)}">✕</button>`
         : '';
       return `<div class="pr-item">${dot}${name}${cmd}${kill}</div>`;
     }).join('');
-
-    // Bind kill buttons
-    procsListEl.querySelectorAll('.pr-kill').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        // stop_process : l'outil harness gère le kill ; ici on demande juste via IPC
-        // Pas de stop IPC direct exposé — le LLM appelle stop_process.
-        // On peut simuler en émettant un événement interne pour l'affichage.
-        btn.disabled = true;
-        btn.textContent = '…';
-      });
-    });
   }
+
+  // Un seul listener délégué : la liste est reconstruite à chaque mise à jour.
+  procsListEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.pr-kill');
+    if (!btn || !btn.dataset.name) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+    const res = await window.harness.stopProcess(btn.dataset.name).catch(() => null);
+    if (res?.ok) return;                 // la liste sera rafraîchie par procs:update
+    btn.disabled = false;
+    btn.textContent = '✕';
+    btn.title = res?.error || 'Arrêt impossible';
+  });
 
   function _procStatusLabel(status) {
     switch (status) {

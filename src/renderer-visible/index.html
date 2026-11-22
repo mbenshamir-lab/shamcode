@@ -2,7 +2,17 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; media-src 'self' file: blob:; connect-src 'self' file:; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    // Thème appliqué avant le premier paint : évite le flash sombre en thème clair.
+    try {
+      var bootTheme = window.__shamBoot && window.__shamBoot.theme;
+      if (bootTheme === 'light' || bootTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', bootTheme);
+      }
+    } catch (e) { /* repli : app.js appliquera le thème après chargement */ }
+  </script>
   <title>ShamCode</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -18,7 +28,7 @@
       <span class="brand-name">ShamCode</span>
     </div>
     <div class="topbar-center">
-      <span class="project-icon">�?</span>
+      <span class="project-icon" aria-hidden="true">📁</span>
       <span id="project-root-label" title="Dossier projet actif">Aucun projet</span>
     </div>
     <div class="topbar-right">
@@ -44,23 +54,23 @@
             </svg>
             <span class="sb-label">Nouveau</span>
           </button>
-          <button id="btn-search-session" class="sb-icon-btn" title="Rechercher une session">
+          <button id="btn-search-session" class="sb-icon-btn" title="Rechercher une session" aria-label="Rechercher une session">
             <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
               <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
             </svg>
           </button>
-          <button id="btn-sidebar-collapse" class="sb-icon-btn sb-collapse-btn" title="Réduire la barre">
+          <button id="btn-sidebar-collapse" class="sb-icon-btn sb-collapse-btn" title="Réduire la barre" aria-label="Réduire la barre latérale">
             <svg class="sb-collapse-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
               <path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
             </svg>
           </button>
         </div>
         <!-- Barre de recherche — affichée/masquée par btn-search-session -->
-        <div id="sb-search-wrap" class="sb-search-wrap sb-label hidden">
+        <div id="sb-search-wrap" class="sb-search-wrap hidden">
           <svg class="sb-search-icon" viewBox="0 0 16 16" fill="currentColor" width="11" height="11">
             <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
           </svg>
-          <input type="text" id="sb-search-input" class="sb-search-input" placeholder="Rechercher une session…" autocomplete="off" />
+          <input type="text" id="sb-search-input" class="sb-search-input" aria-label="Rechercher une session" placeholder="Rechercher une session…" autocomplete="off" />
         </div>
       </div>
 
@@ -151,16 +161,16 @@
             </div>
             <!-- Formulaire inline d'ajout -->
             <div id="scheduler-add-form" class="scheduler-add-form hidden">
-              <input type="text" id="sched-label" class="snav-input sb-label" placeholder="Libellé de la tâche" autocomplete="off" />
-              <textarea id="sched-task" class="snav-input sb-label" placeholder="Décris la tâche pour l'agent…" rows="2"></textarea>
-              <select id="sched-cron-preset" class="snav-input sb-label">
+              <input type="text" id="sched-label" class="snav-input sb-label" aria-label="Libellé de la tâche planifiée" placeholder="Libellé de la tâche" autocomplete="off" />
+              <textarea id="sched-task" class="snav-input sb-label" aria-label="Tâche à exécuter par l'agent" placeholder="Décris la tâche pour l'agent…" rows="2"></textarea>
+              <select id="sched-cron-preset" class="snav-input sb-label" aria-label="Fréquence de la tâche">
                 <option value="0 9 * * 1-5">Lun–Ven à 9h</option>
                 <option value="0 9 * * *">Tous les jours à 9h</option>
                 <option value="0 8 * * 1">Chaque lundi à 8h</option>
                 <option value="0 */2 * * *">Toutes les 2 heures</option>
                 <option value="custom">Personnalisé…</option>
               </select>
-              <input type="text" id="sched-cron-custom" class="snav-input sb-label hidden" placeholder="ex : 0 9 * * 1-5" autocomplete="off" />
+              <input type="text" id="sched-cron-custom" class="snav-input sb-label hidden" aria-label="Expression cron personnalisée" placeholder="ex : 0 9 * * 1-5" autocomplete="off" />
               <div class="snav-form-actions">
                 <button id="btn-sched-save" class="snav-add-btn">
                   <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
@@ -185,7 +195,7 @@
 
       <!-- ── Partie 3 : Sessions (¼ hauteur fixe, scroll) ───────────────────── -->
       <div class="sb-part sb-part-3">
-        <div class="sidebar-sessions-header">
+        <div class="sidebar-sessions-header" role="button" tabindex="0" aria-label="Voir toutes les sessions" title="Voir toutes les sessions">
           <span class="sidebar-title sb-label">Workspace</span>
           <svg class="sb-part3-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
             <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
@@ -198,13 +208,13 @@
 
       <!-- ── Partie 4 : Actions bas de sidebar ──────────────────────────── -->
       <div class="sb-part sb-part-4">
-        <div class="sidebar-profile">
-          <div class="profile-avatar" id="profile-avatar">⚙</div>
-          <div class="profile-info sb-label">
+        <button type="button" class="sidebar-profile" aria-label="Ouvrir les paramètres">
+          <span class="profile-avatar" id="profile-avatar">⚙</span>
+          <span class="profile-info sb-label">
             <span class="profile-name" id="profile-name">Paramètres</span>
             <span class="profile-engine" id="profile-engine">—</span>
-          </div>
-        </div>
+          </span>
+        </button>
       </div>
 
     </aside>
@@ -217,8 +227,8 @@
 
         <!-- COLONNE CHAT -->
         <div id="chat-column">
-          <main id="chat-area">
-            <div id="messages">
+          <main id="chat-area" tabindex="0" aria-label="Conversation">
+            <div id="messages" role="log" aria-live="polite" aria-relevant="additions">
 <div class="chat-empty" id="chat-empty">
   <div>Pose ta question pour démarrer.</div>
   <div class="chat-empty-suggestions">
@@ -226,7 +236,7 @@
     <button type="button" class="chat-empty-suggestion">Trouve les bugs</button>
     <button type="button" class="chat-empty-suggestion">Écris un test</button>
   </div>
-  <div class="chat-empty-hint">Ctrl+L pour placer le curseur dans la saisie</div>
+  <div class="chat-empty-hint">Ctrl+L pour placer le curseur dans la saisie — Ctrl+Maj+L pour effacer la conversation</div>
 </div>
               <div class="welcome-card">
                 <div class="welcome-icon">⬡</div>
@@ -263,7 +273,7 @@
             <div class="persona-row">
               <!-- Consommation de la mémoire contextuelle (dernière requête / fenêtre du moteur) -->
               <span id="ctx-usage" class="ctx-usage hidden"></span>
-              <select id="persona-select" class="persona-select" title="Rôle de l'agent">
+              <select id="persona-select" class="persona-select" title="Rôle de l'agent" aria-label="Rôle de l'agent">
                 <option value="dev">⚡ Dev</option>
                 <option value="architecte">🏗 Architecte</option>
                 <option value="securite">🔒 Sécurité</option>
@@ -274,13 +284,13 @@
             </div>
 
             <div id="input-wrapper">
-              <textarea id="task-input" placeholder="Décris ta tâche… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)" rows="2"></textarea>
+              <textarea id="task-input" aria-label="Décris ta tâche" placeholder="Décris ta tâche… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)" rows="2"></textarea>
               <div id="input-toolbar">
 
                 <!-- ── Gauche : trombone + Plan/Action + modèle ── -->
                 <div class="toolbar-left">
                   <!-- Joindre un fichier ou une image -->
-                  <button id="btn-attach" class="btn-icon-action btn-icon-attach" title="Joindre un fichier ou une image">
+                  <button id="btn-attach" class="btn-icon-action btn-icon-attach" title="Joindre un fichier ou une image" aria-label="Joindre un fichier ou une image">
                     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z"/></svg>
                   </button>
 
@@ -319,7 +329,7 @@
                     </button>
                     <div id="model-dropdown" class="model-dropdown hidden">
                       <div class="model-dropdown-search">
-                        <input id="model-dropdown-filter" class="model-dropdown-filter" type="text" placeholder="Filtrer les modèles…" autocomplete="off" spellcheck="false" />
+                        <input id="model-dropdown-filter" class="model-dropdown-filter" type="text" placeholder="Filtrer les modèles…" aria-label="Filtrer les modèles" autocomplete="off" spellcheck="false" />
                       </div>
                       <div id="model-dropdown-list" class="model-dropdown-list"></div>
                       <div class="model-dropdown-footer">
@@ -333,13 +343,13 @@
                 <!-- ── Droite : Stop + Envoyer ── -->
                 <div class="toolbar-right">
                   <!-- Dictée vocale (visible seulement si activée dans les paramètres) -->
-                  <button id="btn-mic" class="btn-icon-action btn-mic hidden" title="Dicter (cliquer pour parler)">
+                  <button id="btn-mic" class="btn-icon-action btn-mic hidden" title="Dicter (cliquer pour parler)" aria-label="Dicter">
                     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 0 0 3-3V3a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M3.5 7.5a.5.5 0 0 1 1 0V8a3.5 3.5 0 0 0 7 0v-.5a.5.5 0 0 1 1 0V8a4.5 4.5 0 0 1-4 4.473V14.5h1.5a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1H7.5v-2.027A4.5 4.5 0 0 1 3.5 8v-.5z"/></svg>
                   </button>
-                  <button id="btn-cancel" class="btn-stop" disabled title="Arrêter l'agent">
+                  <button id="btn-cancel" class="btn-stop" disabled title="Arrêter l'agent" aria-label="Arrêter l'agent">
                     <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
                   </button>
-                  <button id="btn-send" class="btn-send-primary" title="Envoyer (Entrée)">
+                  <button id="btn-send" class="btn-send-primary" title="Envoyer (Entrée)" aria-label="Envoyer">
                     <svg viewBox="0 0 16 16" fill="currentColor" width="15" height="15"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/></svg>
                   </button>
                 </div>
@@ -495,7 +505,7 @@
   </dialog>
 
   <!-- ── Visionneuse de fichiers flottante (onglets par fichier) ──────────── -->
-  <div id="file-viewer" class="file-viewer hidden" role="dialog" aria-label="Lecteur de fichiers du projet">
+  <div id="file-viewer" class="file-viewer hidden" role="dialog" tabindex="-1" aria-label="Lecteur de fichiers du projet">
     <div class="fv-head" id="fv-head">
       <div class="fv-tabs" id="fv-tabs"></div>
       <button class="fv-close" id="fv-close" title="Fermer la visionneuse">✕</button>
@@ -506,6 +516,7 @@
     </div>
   </div>
 
+  <script src="media.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

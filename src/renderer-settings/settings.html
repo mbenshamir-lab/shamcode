@@ -2,6 +2,7 @@
 <html lang="fr" data-theme="dark">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; media-src 'self' file: blob:; connect-src 'self' file:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Paramètres — ShamCode</title>
   <link rel="stylesheet" href="../renderer-visible/styles.css">
@@ -269,6 +270,16 @@
             </div>
             <label class="sm-toggle"><input type="checkbox" id="sm-approval-mode" /><span class="sm-toggle-track"></span></label>
           </div>
+        </div>
+
+        <div class="sm-field-group">
+          <label class="sm-label" for="sm-autonomy-level">Autonomie de l'agent</label>
+          <select id="sm-autonomy-level" class="sm-select">
+            <option value="off">Désactivée — aucune autonomie</option>
+            <option value="assisted">Supervisée — décide du réversible, demande le reste (recommandé)</option>
+            <option value="auto">Étendue — décide aussi du structurant, sauf irréversible</option>
+          </select>
+          <p class="sm-hint">Objectifs persistants : l'agent fixe des critères vérifiables et ne peut pas terminer sans preuve. « Supervisée » : il tranche les choix réversibles, mais demande avant une API, un IPC, une dépendance ou plus de 3 modules.</p>
         </div>
 
         <div class="sm-field-group">
@@ -577,7 +588,7 @@
 
         <p class="sm-section-label sm-mt sm-mb-6">Couleur d'accent</p>
         <div class="sm-swatches">
-          <button class="sm-swatch" data-accent="#6366f1" style="background:#6366f1" title="Indigo"   type="button"></button>
+          <button class="sm-swatch" data-accent="#4f46e5" style="background:#4f46e5" title="Indigo"   type="button"></button>
           <button class="sm-swatch" data-accent="#3b82f6" style="background:#3b82f6" title="Bleu"     type="button"></button>
           <button class="sm-swatch" data-accent="#10b981" style="background:#10b981" title="Émeraude" type="button"></button>
           <button class="sm-swatch" data-accent="#f59e0b" style="background:#f59e0b" title="Ambre"    type="button"></button>

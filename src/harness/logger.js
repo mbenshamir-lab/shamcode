@@ -11,9 +11,10 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { getDataDir } = require('../shared/data-dir');
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const LOG_DIR      = path.join(process.env.APPDATA || '', 'code-harness', 'logs');
+// Résolu à chaque écriture : le main fixe HARNESS_DATA_DIR après app.ready.
 const MAX_DAYS     = 7;
 const MAX_BYTES    = 5 * 1024 * 1024; // 5 Mo max par fichier
 let   _enabled     = true;            // peut être désactivé via logger.disable()
@@ -24,13 +25,17 @@ function _today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+function _logDir() {
+  return path.join(getDataDir(), 'logs');
+}
+
 function _logPath() {
-  return path.join(LOG_DIR, `harness-${_today()}.log`);
+  return path.join(_logDir(), `harness-${_today()}.log`);
 }
 
 /** Crée le dossier logs si absent. */
 function _ensureDir() {
-  try { fs.mkdirSync(LOG_DIR, { recursive: true }); }
+  try { fs.mkdirSync(_logDir(), { recursive: true }); }
   catch { /* ignoré */ }
 }
 
@@ -38,9 +43,9 @@ function _ensureDir() {
 function _rotate() {
   try {
     const cutoff = Date.now() - MAX_DAYS * 86400_000;
-    const files  = fs.readdirSync(LOG_DIR).filter(f => f.endsWith('.log'));
+    const files  = fs.readdirSync(_logDir()).filter(f => f.endsWith('.log'));
     for (const f of files) {
-      const full = path.join(LOG_DIR, f);
+      const full = path.join(_logDir(), f);
       try {
         if (fs.statSync(full).mtimeMs < cutoff) fs.unlinkSync(full);
       } catch { /* ignoré */ }

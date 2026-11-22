@@ -104,7 +104,7 @@ describe('app.js — cycle de vie du plan épinglé', () => {
     // Fenêtre large : la remise à zéro des bandeaux se trouve après le garde-fou
     // de validation (~1400 caractères) — une borne trop courte rendait ce test
     // rouge sans qu'aucun comportement ne soit cassé.
-    const block = src.slice(idx, idx + 2000);
+    const block = src.slice(idx, idx + 2400);
     assert.ok(block.includes('_planPinHide()'), 'réinitialisation au démarrage');
   });
 

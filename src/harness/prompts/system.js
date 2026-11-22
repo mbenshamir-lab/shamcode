@@ -49,6 +49,8 @@ function buildSystemPrompt(availableTools, projectContext = '', opts = {}) {
     tddMode        = false,
     feedbackSummary = '',
     profile        = 'standard',
+    goal           = '',
+    autonomyLevel  = 'off',
   } = opts;
 
   // Profil minimal (ADR-024) : on retire les sections qui supposent un modèle capable de
@@ -172,7 +174,32 @@ Lis tous les fichiers pertinents, puis produis un plan d'action détaillé que l
     ? `\n\nAPPRENTISSAGE — PRÉFÉRENCES UTILISATEUR (basé sur l'historique des décisions) :\n${feedbackSummary}`
     : '';
 
-  let prompt = `Tu es un ingénieur logiciel senior. Tu modifies du code professionnel sur un projet local.${extraSection}${tddSection}${busSection}${shellSection}${planModeSection}${langSection}${feedbackSection}${skillsSection}
+  // Moteur d'objectifs (ADR-031) : le bloc n'apparaît que si un objectif existe.
+  // En profil minimal, on garde le rappel court (les petits modèles perdent le fil).
+  const autonomySection = autonomyLevel !== 'off'
+    ? (minimal
+        ? '\n\nAUTONOMIE : décide seul du réversible ; demande pour API/IPC/dépendance/> 3 modules ; jamais pour destructif.'
+        : `\n\nAUTONOMIE (${autonomyLevel}) — prendre les bonnes décisions :
+- Décisions réversibles (nommage, module interne, refactor local) : décide seul et journalise avec goal decide.
+- Décisions structurantes (API publique, IPC, schéma, > 3 modules, dépendance npm) : demande avant, puis journalise avec "approved": true.
+- Décisions irréversibles (suppression de données, shell destructif, secret, publication) : demande TOUJOURS.
+- Priorité : convention existante > test vert > plus petit diff > performance.`)
+    : '';
+
+  const goalSection = goal
+    ? `\n\nOBJECTIF ACTIF (persisté) :
+${goal}
+
+Tu ne termines que si TOUS les critères sont "met" avec une preuve réelle (read_file du fichier modifié, run_tests vert). Sinon : goal block avec la raison.`
+    : '';
+
+  const goalRule = autonomyLevel !== 'off'
+    ? (minimal
+        ? '\n12. Tâche qui modifie du code : goal set avant, goal status avec preuve, goal close ou goal block.'
+        : '\n12. Toute tâche qui modifie du code commence par goal set (objectif + source citée + critères vérifiables). Prouve chaque critère avec goal status (read_file réel ou run_tests vert), puis goal close — ou goal block si tu ne peux pas. Jamais de finish avec un objectif incomplet.')
+    : '';
+
+  let prompt = `Tu es un ingénieur logiciel senior. Tu modifies du code professionnel sur un projet local.${extraSection}${tddSection}${busSection}${shellSection}${planModeSection}${langSection}${feedbackSection}${skillsSection}${autonomySection}${goalSection}
 
 RÈGLES NON NÉGOCIABLES :
 1. Tu réponds UNIQUEMENT par un objet JSON valide, rien d'autre.
@@ -186,7 +213,7 @@ ${planRule}
 8. Ne termine JAMAIS par finish avant que la tâche soit vérifiée et complète. Ton finish liste les preuves dans "checks" : chaque fichier modifié relu ({"kind":"file","path":"…"}) et/ou un test lancé ({"kind":"test","command":"npm test","result":"pass"}).
 9. Après chaque write_file ou replace_code réussi : appelle immédiatement read_file sur ce même fichier pour vérifier l'intégration avant toute autre action.
 10. Si tu modifies un fichier de code (.js, .ts, .py, .go, .rs…) : lance run_tests après ta vérification pour t'assurer que la suite de tests passe. Si des tests échouent, corrige-les avant d'appeler finish.
-11. Si un résultat indique ⚠️ SECRET POTENTIEL DÉTECTÉ : vérifie immédiatement la ligne concernée avec read_file et remplace la valeur par une variable d'environnement ou un espace réservé.
+11. Si un résultat indique ⚠️ SECRET POTENTIEL DÉTECTÉ : vérifie immédiatement la ligne concernée avec read_file et remplace la valeur par une variable d'environnement ou un espace réservé.${goalRule}
 
 QUALITÉ DU CODE — STANDARDS PROFESSIONNELS :
 - Respecte les conventions existantes : indentation, nommage, style, patterns du projet.

@@ -28,7 +28,7 @@ function extractToolCall(rawText) {
   // Les petits modèles (< 3B) émettent parfois de vrais \n à l'intérieur des strings JSON,
   // ce qui rend le JSON invalide. On échappe uniquement à l'intérieur des guillemets.
   text = text.replace(/("(?:[^"\\]|\\[\s\S])*")/g,
-    s => s.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+    s => s.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t'),
   );
 
   // 4. Parser

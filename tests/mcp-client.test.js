@@ -41,7 +41,7 @@ describe('McpClient', () => {
         if (method === 'initialize')  return { protocolVersion: '2024-11-05', capabilities: {} };
         if (method === 'tools/list')  return { tools: [fakeTool] };
         return null;
-      }
+      },
     );
 
     const tools = await client.connect();
@@ -61,7 +61,7 @@ describe('McpClient', () => {
           isError: false,
         };
         return null;
-      }
+      },
     );
     await client.connect();
     const r = await client.callTool('my_tool', { foo: 'bar' });
@@ -80,7 +80,7 @@ describe('McpClient', () => {
           isError: true,
         };
         return null;
-      }
+      },
     );
     await client.connect();
     const r = await client.callTool('bad_tool');
@@ -104,7 +104,7 @@ describe('McpClient', () => {
         if (method === 'initialize') return {};
         if (method === 'tools/list') throw new Error('Serveur indisponible');
         return null;
-      }
+      },
     );
     const tools = await client.connect();
     assert.deepEqual(tools, []);

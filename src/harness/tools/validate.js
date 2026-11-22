@@ -49,6 +49,7 @@ const SCHEMAS = {
   find_dependents:    { required: { path: 'string' }, example: { path: 'src/harness/agent.js' } },
   find_dependencies:  { required: { path: 'string' }, example: { path: 'src/harness/agent.js' } },
   project_note:         { required: { action: 'string' }, example: { action: 'set', key: 'stack', value: 'Next.js + Prisma' } },
+  goal:                 { required: { action: 'string' }, example: { action: 'set', objective: 'Ajouter l\'export CSV', source: '« je veux exporter les sessions »', criteria: [{ text: 'test export', verify: { kind: 'test', command: 'npm test' } }] } },
   generate_palette:     { required: { base_color: 'string' }, example: { base_color: '#3B82F6' } },
   read_design_tokens:   { required: {}, example: { path: 'src/styles.css' } },
 };

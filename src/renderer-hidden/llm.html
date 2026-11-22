@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8" /></head>
+<head><meta charset="UTF-8" />
+  <!-- WebLLM est chargé depuis esm.run (jsDelivr) ; les poids viennent de HuggingFace. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file: 'wasm-unsafe-eval' 'unsafe-eval' https://esm.run https://cdn.jsdelivr.net; connect-src 'self' file: https:; worker-src 'self' file: blob:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; object-src 'none'; base-uri 'none'" /></head>
 <body>
   <!-- Fenêtre cachée — moteur WebLLM. Jamais visible par l'utilisateur. -->
   <!-- backgroundThrottling: false dans windows.js est CRITIQUE pour ce renderer. -->

@@ -4,6 +4,9 @@
  * Chrome doit être installé sur la machine (puppeteer-core ne le bundle pas).
  */
 
+/* global document, window, location */
+// ↑ les callbacks passés à page.evaluate() s'exécutent dans le navigateur, pas dans Node.
+
 // puppeteer-core est ESM-only (v25+) — chargement via import() dynamique.
 // _puppeteerOverride est injecté par les tests pour éviter un vrai launch.
 let _puppeteer         = null;

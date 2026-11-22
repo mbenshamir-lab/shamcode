@@ -169,7 +169,7 @@ describe('UI — animation, intention et jauge de contexte', () => {
 
   it('la jauge repart à zéro pour chaque tâche', () => {
     const idx = src.indexOf('async function sendTask');
-    const block = src.slice(idx, idx + 1200);
+    const block = src.slice(idx, idx + 1500);
     assert.ok(block.includes('_resetContextUsage()'), 'remise à zéro');
   });
 

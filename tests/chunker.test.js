@@ -171,7 +171,7 @@ describe('chunkFile — chunking sémantique', () => {
     const body = Array.from({ length: 78 }, (_, i) => `  line${i};`).join('\n');
     const content = `function huge() {\n${body}\n}`;
     const chunks = chunkFile('src/big.js', content, 'h');
-    assert.ok(chunks.length >= 2, `une fonction de 80 lignes doit être sous-découpée`);
+    assert.ok(chunks.length >= 2, 'une fonction de 80 lignes doit être sous-découpée');
   });
 
   test('fichier vide → 0 ou 1 chunk', () => {

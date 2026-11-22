@@ -168,9 +168,111 @@ describe('CpuEngine', () => {
     const eng = new CpuEngine({ modelPath: '/fake/model.gguf' }, mockImport);
     await assert.rejects(
       eng.generate([{ role: 'user', content: 'test' }]),
-      /LLAMA_ERREUR/
+      /LLAMA_ERREUR/,
     );
   });
+
+  it('generate() → journalise llama.cpp hors console (pas d\'EPIPE)', async () => {
+    let llamaOpts = null;
+    const importFn = async () => ({
+      getLlama: async (opts) => {
+        llamaOpts = opts;
+        return {
+          loadModel: async () => ({
+            createContext: async () => ({ getSequence: () => ({}), dispose: async () => {} }),
+            dispose: async () => {},
+          }),
+          dispose: async () => {},
+        };
+      },
+      LlamaChatSession: function () {
+        this.prompt = async () => 'ok';
+        this.reloadHistory = async () => {};
+      },
+    });
+    const eng = new CpuEngine({ modelPath: '/fake/model.gguf' }, importFn);
+    await eng.generate([{ role: 'user', content: 'q' }]);
+    assert.equal(llamaOpts.logLevel, 'error');
+    assert.equal(typeof llamaOpts.logger, 'function');
+  });
+
+  it('generate() → réutilise la session (cache KV) quand l\'historique s\'étend', async () => {
+    let sessions = 0;
+    const prompts = [];
+    const importFn = async () => ({
+      getLlama: async () => ({
+        loadModel: async () => ({
+          createContext: async () => ({ getSequence: () => ({}), dispose: async () => {} }),
+          dispose: async () => {},
+        }),
+        dispose: async () => {},
+      }),
+      LlamaChatSession: function () {
+        sessions++;
+        this.prompt = async (text) => { prompts.push(text); return 'ok'; };
+        this.reloadHistory = async () => {};
+      },
+    });
+
+    const eng = new CpuEngine({ modelPath: '/fake/model.gguf' }, importFn);
+    await eng.generate([
+      { role: 'system', content: 'S' },
+      { role: 'user', content: 'a' },
+    ]);
+    await eng.generate([
+      { role: 'system', content: 'S' },
+      { role: 'user', content: 'a' },
+      { role: 'assistant', content: 'ok' },
+      { role: 'user', content: 'b' },
+    ]);
+
+    assert.equal(sessions, 1, 'une seule session doit être créée');
+    assert.deepEqual(prompts, ['a', 'b'], 'le second appel ne doit envoyer que le delta');
+  });
+
+  it('generate() → recrée la session si l\'historique diverge', async () => {
+    let sessions = 0;
+    const importFn = async () => ({
+      getLlama: async () => ({
+        loadModel: async () => ({
+          createContext: async () => ({ getSequence: () => ({}), dispose: async () => {} }),
+          dispose: async () => {},
+        }),
+        dispose: async () => {},
+      }),
+      LlamaChatSession: function () {
+        sessions++;
+        this.prompt = async () => 'ok';
+        this.reloadHistory = async () => {};
+      },
+    });
+
+    const eng = new CpuEngine({ modelPath: '/fake/model.gguf' }, importFn);
+    await eng.generate([{ role: 'user', content: 'a' }]);
+    await eng.generate([{ role: 'user', content: 'autre tâche' }]);
+    assert.equal(sessions, 2, 'un historique divergent doit repartir d\'une session neuve');
+  });
+
+  it('generate() → passe maxTokens et la température à la session', async () => {
+    let captured = null;
+    const { mockImport } = _makeMock();
+    const origImport = mockImport;
+    const spyImport = async () => {
+      const m = await origImport();
+      const Orig = m.LlamaChatSession;
+      m.LlamaChatSession = function (opts) {
+        const s = new Orig(opts);
+        const origPrompt = s.prompt;
+        s.prompt = async (text, pOpts) => { captured = pOpts; return origPrompt(text, pOpts); };
+        return s;
+      };
+      return m;
+    };
+    const eng = new CpuEngine({ modelPath: '/fake/model.gguf' }, spyImport);
+    await eng.generate([{ role: 'user', content: 'q' }], { temperature: 0.2, maxTokens: 512 });
+    assert.equal(captured.temperature, 0.2);
+    assert.equal(captured.maxTokens, 512);
+});
 
   it('dispose() → libère le modèle et le contexte llama', async () => {
     const { mockImport, disposeModel, disposeLlama } = _makeMock();
@@ -229,7 +331,7 @@ describe('constants', () => {
 describe('settings.html — cpu', () => {
   const html = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'renderer-settings', 'settings.html'),
-    'utf8'
+    'utf8',
   );
 
   it('contient l\'option cpu dans le select du moteur', () => {
@@ -258,7 +360,7 @@ describe('settings.html — cpu', () => {
 describe('preload-settings.js', () => {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'main', 'preload-settings.js'),
-    'utf8'
+    'utf8',
   );
 
   it('expose selectFile via ipcRenderer.invoke(IPC.FILE_DIALOG)', () => {

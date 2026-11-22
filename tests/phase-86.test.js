@@ -119,14 +119,14 @@ test('dispatch — 3 cases LSP présents dans index.js', () => {
   assert.ok(src.includes('case TOOLS.LSP_HOVER:'),       'case LSP_HOVER absent');
   assert.ok(src.includes('case TOOLS.LSP_DEFINITION:'),  'case LSP_DEFINITION absent');
   assert.ok(src.includes('case TOOLS.LSP_REFERENCES:'),  'case LSP_REFERENCES absent');
-  assert.ok(src.includes("require('./lsp')"),            "import lsp absent");
+  assert.ok(src.includes("require('./lsp')"),            'import lsp absent');
 });
 
 // ── 6. Agent — toolNames + descriptions + dispose ────────────────────────────
 
 test('agent — lsp_* ajoutés si enableLsp:true', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/harness/agent.js'), 'utf8');
-  assert.ok(src.includes("config.enableLsp"), 'garde enableLsp absente');
+  assert.ok(src.includes('config.enableLsp'), 'garde enableLsp absente');
   assert.ok(src.includes("'lsp_hover', 'lsp_definition', 'lsp_references'"), 'push lsp tools absent');
 });
 
@@ -165,7 +165,7 @@ test('settings.html — hints installation présents', () => {
 test('settings.html — sm-lsp-config démarre caché (sm-hidden)', () => {
   const html = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.html'), 'utf8');
   assert.ok(html.includes('id="sm-lsp-config" class="sm-hidden"') ||
-            html.includes("id=\"sm-lsp-config\" class=\"sm-hidden\""),
+            html.includes('id="sm-lsp-config" class="sm-hidden"'),
             'sm-lsp-config doit avoir la classe sm-hidden');
 });
 
@@ -186,11 +186,11 @@ test('settings.js — helper _smToggleLspConfig défini', () => {
 
 test('settings.js — handler change persiste enableLsp', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.js'), 'utf8');
-  assert.ok(src.includes("_autoSave({ enableLsp:"), 'handler _autoSave enableLsp absent');
+  assert.ok(src.includes('_autoSave({ enableLsp:'), 'handler _autoSave enableLsp absent');
 });
 
 test('settings.js — _saveLspServers persiste lspServers', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.js'), 'utf8');
   assert.ok(src.includes('_saveLspServers'), '_saveLspServers absent');
-  assert.ok(src.includes("_autoSave({ lspServers:"), '_autoSave lspServers absent');
+  assert.ok(src.includes('_autoSave({ lspServers:'), '_autoSave lspServers absent');
 });

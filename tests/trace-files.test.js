@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 // Extraire _extractModifiedFiles depuis app.js
 const src = require('fs').readFileSync(
   require('path').join(__dirname, '../src/renderer-visible/app.js'),
-  'utf8'
+  'utf8',
 );
 
 const match = src.match(/function _extractModifiedFiles\(trace\) \{([\s\S]*?)\n  \}/);

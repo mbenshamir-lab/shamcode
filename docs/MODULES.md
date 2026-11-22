@@ -87,7 +87,13 @@ runAgent({
   onEvent,        // (event) => void — stream vers l'UI
 }) → Promise<{ ok, summary?, trace, error? }>
 ```
-**Dépend de** : `parser`, `tools/index`, `mcp/registry`, `safety/path-guard`, `prompts/system`, `prompts/by-language`, `context/builder`, `rag/*`, `memory/*`, `tools/browser` (dispose), `shared/constants`
+**Dépend de** : `parser`, `tools/index`, `mcp/registry`, `safety/path-guard`, `prompts/system`, `prompts/by-language`, `context/builder`, `rag/*`, `memory/*`, `goals/*`, `tools/browser` (dispose), `shared/constants`
+
+### `goals/` — moteur d'objectifs (ADR-031)
+- `model.js` — `createGoal()`, `normalizeCriteria()`, `goalSummary()`, `pendingCriteria()` : objectif + critères **vérifiables** (test/fichier/commande) + budget.
+- `store.js` — `saveGoal()` (écriture atomique), `loadActiveGoal()`, `listGoals()`, `archiveActiveGoal()` — un JSON par objectif dans `<projet>/.harness/goals/`, sous path-guard.
+- `policy.js` — `canDecideAlone()` (D0–D3 × `off|assisted|auto`), `validateDecision()`, `evaluateGoalCompletion()` : preuve recoupée avec la trace (`read_file`, `run_tests`, `run_shell`), budget fichiers/étapes/dépendances.
+- Gate : `finish` est refusé tant qu'un critère n'est pas `met` avec preuve ; au deuxième refus (ou à `MAX_STEPS`) l'objectif passe `blocked`.
 
 ### `parser.js`
 **Rôle** : extrait un tool call JSON depuis la réponse brute du LLM. Ultra-tolérant.
@@ -154,7 +160,8 @@ router.disposeAll()             → void
 | `openai-compat.js` | OpenAI-compatible | URL de base configurable |
 | `claude.js` | Anthropic API | `x-api-key` + `anthropic-version` |
 | `webllm.js` | WebLLM (WebGPU) | Délègue au bridge IPC `llm:request` |
-| `cpu.js` | node-llama-cpp | Import dynamique ESM depuis CJS |
+| `cpu.js` | node-llama-cpp | Session persistante (cache KV), contexte 4k, KV `Q8_0`, flash attention, Vulkan/CUDA auto |
+| `deepseek` (registre) | DeepSeek | Réutilise `OpenAiCompatEngine` avec `DEEPSEEK_BASE` |
 
 ---
 
@@ -176,6 +183,11 @@ dispatch(toolName, args, guard, config, onEvent, projectRoot, mcpRegistry) → P
 - `deleteFile(args, guard)` → `{ ok }`
 - `moveFile(args, guard)` → `{ ok }`
 
+### Outil objectif (`goal.js`)
+- `goalTool(args, config, projectRoot, onEvent)` — actions `set/status/decide/plan/close/block/get`.
+- `set` exige `source` (citation) + critères vérifiables ; `status` exige une preuve ; `decide` applique la matrice D0–D3 ; `close` refuse un critère non prouvé ; `block` exige une raison.
+- Désactivé si `autonomyLevel === 'off'` ; absent des sous-agents (périmètre strict).
+
 ### Outils shell/process
 - `shell.js` — `runShell` : seulement si `enableShell === true`
 - `spawn.js` — `spawnAgent` : sous-agent
@@ -195,6 +207,16 @@ dispatch(toolName, args, guard, config, onEvent, projectRoot, mcpRegistry) → P
 - `rules.js` — `addRule`, `deleteRule`, `installSkill`, `removeSkill`
 - `api.js` — `callApi`
 
+### Outils LSP (`lsp.js`)
+- `lspHover`, `lspDefinition`, `lspReferences` — client LSP stdio, chargé seulement si `config.enableLsp`
+
+### Outils média
+- `image.js` — `generateImage`
+- `video.js` — `generateVideo`
+- `merge-videos.js` — `mergeVideos` (ffmpeg)
+- `speech.js` — `generateSpeech`, `listSpeechVoices`
+- `design.js` — `generatePalette`, `readDesignTokens`
+
 ### Outils browser (`browser.js`)
 Singletons par session. Tous dépendent de `puppeteer-core`.
 `browserOpen`, `browserNavigate`, `browserScreenshot`, `browserClick`, `browserType`, `browserEvaluate` (requiert `enableShell`), `browserGetText`, `browserWait`, `browserClose`, `disposeBrowser`
@@ -206,18 +228,26 @@ Singletons par session. Tous dépendent de `puppeteer-core`.
 **Rôle** : assemble le contexte injecté dans le prompt système.
 - `tree.js` — arborescence filtrée du projet
 - `symbols.js` — extraction regex multi-langages (JS/TS/Py/Go/Rust/Java/C#/Ruby/PHP)
-- `trimmer.js` — budget 12k chars, priorité : system > task > files > rag > tree
-- `builder.js` — `buildContext(projectRoot, task, config)` → string injectée dans le prompt
+- `trimmer.js` — parts `rag 70 % / tree 30 % / symbols 15 % / notes 10 %`, deux passes (plafonds puis reliquat)
+- `budget.js` — `resolveContextBudget({engine, model, maxContextChars})` : 4 000 (petit modèle local), 8 000 (local), sinon `maxContextChars`
+- `depgraph.js` — graphe import/export incrémental, persisté dans `.harness/depgraph.json`
+- `builder.js` — `buildContext({task, projectRoot, ragStore, maxChars})` → string injectée dans le prompt
 
 ---
 
 ## src/harness/rag/
 
 **Rôle** : recherche sémantique légère (bag-of-words TF, sans dépendance ML externe).
-- `store.js` — `createStore(path)` : stockage JSON + similarité cosinus
+- `store.js` — `createStore(storeId)` : stockage JSON + similarité cosinus, dans `<dataDir>/rag/`
 - `embedder.js` — `embed(text)` : vecteur TF normalisé (fallback si `@xenova` absent)
-- `indexer.js` — `indexProject(root, store)` : chunks 60 lignes, overlap 15, SHA1 incrémental
-- `retrieve.js` — `retrieve(query, store, k)` : top-k par cosinus
+- `indexer.js` — `indexProject(root, store)` : chunking sémantique par frontières de déclarations (fallback 60 lignes/15), SHA1 incrémental
+- `retrieve.js` — `retrieveRelevant(store, task, { topK })` : top-k par cosinus
+
+---
+
+## src/harness/voice/
+
+- `summarize.js` — `condenseDictation(raw, llmGenerate)` : < 40 caractères → texte brut ; erreur ou réponse vide → repli sur la transcription brute
 
 ---
 
@@ -230,7 +260,9 @@ Singletons par session. Tous dépendent de `puppeteer-core`.
 
 ## src/harness/prompts/
 
-- `system.js` — `buildSystemPrompt(config, context, tools)` : prompt système complet
+- `system.js` — `buildSystemPrompt(availableTools, context, opts)` : prompt système complet
+- `model-policy.js` — `resolveModelPolicy({engine, model, explicit})` : cloud = prompt complet ; local = profil minimal, RAG/AGENTS/historique réduits, `maxTokens` plus bas (ADR-033)
+- `profile.js` — `resolvePromptProfile` : `minimal` (petits modèles) ou `standard`
 - `examples.js` — few-shot examples injectés dans le prompt
 - `by-language.js` — `detectLanguage(files)`, `getLangRules(lang)` : règles spécifiques au langage
 
@@ -247,6 +279,7 @@ Singletons par session. Tous dépendent de `puppeteer-core`.
 
 **Règle** : zéro accès FS direct. Tout passe par `window.harness`.
 - `index.html` — structure HTML principale
+- `media.js` — `window.ShamMedia` : `kindOf`, `safeRel`, `fileUrl`, `findMediaPath` — construit une URL `file://` confinée au projet (refuse absolu, `..`, protocoles)
 - `app.js` — logique UI complète (vanilla JS)
 - `styles.css` — styles (variables CSS tokens sur `:root`, thèmes, densité)
 
@@ -266,11 +299,24 @@ Singletons par session. Tous dépendent de `puppeteer-core`.
 
 ---
 
+## src/renderer-design/
+
+- `design.html` / `design.css` / `design.js` — Design Studio (palette, contraste WCAG, tokens, export), 100 % frontend via `window.designApi`
+
+---
+
+## src/renderer-voice/
+
+- `voice.html` / `voice.js` — fenêtre cachée Whisper (Transformers.js + onnxruntime-web WASM), créée à la demande
+
+---
+
 ## src/shared/
 
 Importable depuis main ET harness (pas de dépendance Electron, pas de dépendance FS).
 - `constants.js` — `MAX_STEPS`, `TOOLS`, `ENGINES`, `IPC`, `SESSIONS_RETENTION`, `CONTEXT_WINDOW`
 - `approval.js` — logique d'approbation partagée
+- `data-dir.js` — `getDataDir()` : `HARNESS_DATA_DIR` (posé par `main.js`) sinon `%APPDATA%\code-harness` ; base de config, sessions, backups, RAG et logs
 
 ---
 

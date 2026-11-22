@@ -17,20 +17,20 @@ describe('Bug 1 — enableShell false par défaut', () => {
 // ── Bug 2 : move_file invalide la destination dans _readCache ─────────────────
 describe('Bug 2 — move_file invalide la destination dans _readCache', () => {
   const agentSrc = fs.readFileSync(
-    path.join(__dirname, '../src/harness/agent.js'), 'utf8'
+    path.join(__dirname, '../src/harness/agent.js'), 'utf8',
   );
 
   it('le code invalide parsed.args.dest après move_file', () => {
     assert.ok(
       agentSrc.includes('parsed.args.dest'),
-      'agent.js doit invalider parsed.args.dest du cache après move_file'
+      'agent.js doit invalider parsed.args.dest du cache après move_file',
     );
   });
 
   it('la suppression de dest est conditionnelle à MOVE_FILE', () => {
     assert.ok(
       agentSrc.includes('TOOLS.MOVE_FILE && parsed.args.dest'),
-      'la suppression de dest doit être gardée par un test MOVE_FILE'
+      'la suppression de dest doit être gardée par un test MOVE_FILE',
     );
   });
 });
@@ -38,7 +38,7 @@ describe('Bug 2 — move_file invalide la destination dans _readCache', () => {
 // ── Bug 3 : troncature des résultats sans champ content ──────────────────────
 describe('Bug 3 — troncature des résultats sans content', () => {
   const agentSrc = fs.readFileSync(
-    path.join(__dirname, '../src/harness/agent.js'), 'utf8'
+    path.join(__dirname, '../src/harness/agent.js'), 'utf8',
   );
 
   // Extraire _truncateResult et la logique de troncature globale
@@ -48,11 +48,12 @@ describe('Bug 3 — troncature des résultats sans content', () => {
   const trMatch = agentSrc.match(/function _truncateResult\(result\) \{([\s\S]*?)\n\}/);
   assert.ok(trMatch, '_truncateResult introuvable');
 
+  // eslint-disable-next-line no-new-func -- exécute la fonction extraite du source de agent.js
   const trFn = new Function('result', trMatch[1] + '\nreturn result;');
 
   // Reconstruire la logique du bloc resultForContext depuis le source
   const rcMatch = agentSrc.match(
-    /let resultForContext;([\s\S]*?)entry\.result = result;/
+    /let resultForContext;([\s\S]*?)entry\.result = result;/,
   );
   assert.ok(rcMatch, 'bloc resultForContext introuvable');
 
@@ -65,6 +66,7 @@ describe('Bug 3 — troncature des résultats sans content', () => {
     ${rcMatch[1]}
     return resultForContext;
   `;
+  // eslint-disable-next-line no-new-func -- reconstruit le bloc de agent.js pour le tester isolément
   const buildResultForContext = new Function('_result', rcCode);
 
   it('résultat avec content long est tronqué via content', () => {
@@ -90,7 +92,7 @@ describe('Bug 3 — troncature des résultats sans content', () => {
     const serialized = typeof r === 'string' ? r : JSON.stringify(r);
     assert.ok(
       serialized.length <= MAX_RESULT_CHARS + 200,
-      `résultat trop long : ${serialized.length} chars`
+      `résultat trop long : ${serialized.length} chars`,
     );
     assert.ok(serialized.includes('tronqué'), 'message de troncature attendu');
   });
@@ -104,7 +106,7 @@ describe('Bug 3 — troncature des résultats sans content', () => {
     // Vérifier que le source gère le cas string
     assert.ok(
       agentSrc.includes('typeof resultForContext === \'string\''),
-      'resultMsg doit tester typeof resultForContext === string'
+      'resultMsg doit tester typeof resultForContext === string',
     );
   });
 });

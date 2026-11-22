@@ -25,6 +25,7 @@ sessions/
 backups/
 /rag/
 .harness/
+.harness-runtime/
 
 # Fichiers de travail locaux (sorties de tests, logs, notes)
 build.log
@@ -35,9 +36,6 @@ testout2.txt
 tmp-test-out.txt
 test.md
 deepseek_txt_*.txt
-/2396
-/2928
-/3348
 Sham/
 
 # Documents internes (non publiés)
@@ -49,8 +47,5 @@ CAHIER_DES_CHARGES.txt
 .DS_Store
 Thumbs.db
 
-# Fichiers parasites
-/\!declared.has(m)
-/'
 Sham
 scripts/tmp-*.js

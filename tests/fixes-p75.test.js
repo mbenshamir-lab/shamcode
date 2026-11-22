@@ -163,7 +163,7 @@ describe('Phase 75 — ipc.js : handlers settings + broadcast', () => {
     const block = ipcJs.slice(idx, idx + 1100);
     assert.ok(
       block.includes('CONFIG_UPDATED') || block.includes('config:updated'),
-      'broadcast config:updated absent'
+      'broadcast config:updated absent',
     );
   });
 });

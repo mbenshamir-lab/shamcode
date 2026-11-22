@@ -197,7 +197,7 @@ test('agent — description fix_loop dans allToolDefs', () => {
 
 test('agent — fix_loop ajouté si enableFixLoop:true', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/harness/agent.js'), 'utf8');
-  assert.ok(src.includes("config.enableFixLoop") && src.includes("'fix_loop'"), 'push fix_loop absent');
+  assert.ok(src.includes('config.enableFixLoop') && src.includes("'fix_loop'"), 'push fix_loop absent');
 });
 
 // ── 7. Settings HTML ─────────────────────────────────────────────────────────
@@ -232,10 +232,10 @@ test('settings.js — helper _smToggleFixLoopConfig défini', () => {
 
 test('settings.js — handler change persiste enableFixLoop', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.js'), 'utf8');
-  assert.ok(src.includes("_autoSave({ enableFixLoop:"), '_autoSave enableFixLoop absent');
+  assert.ok(src.includes('_autoSave({ enableFixLoop:'), '_autoSave enableFixLoop absent');
 });
 
 test('settings.js — handler change persiste fixLoopMaxIterations', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.js'), 'utf8');
-  assert.ok(src.includes("_autoSave({ fixLoopMaxIterations:"), '_autoSave fixLoopMaxIterations absent');
+  assert.ok(src.includes('_autoSave({ fixLoopMaxIterations:'), '_autoSave fixLoopMaxIterations absent');
 });

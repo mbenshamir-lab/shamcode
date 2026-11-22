@@ -110,7 +110,8 @@ describe('app.js — UI du toggle en mode Action', () => {
 
   it('le changement de mode rafraîchit le toggle', () => {
     const idx = appJs.indexOf('function _setMode');
-    const body = appJs.slice(idx, idx + 420);
+    // Fenêtre élargie : _setMode synchronise aussi aria-pressed (a11y) avant l'appel.
+    const body = appJs.slice(idx, idx + 600);
     assert.ok(body.includes('_refreshApprovalToggle()'), '_setMode doit rafraîchir le toggle');
   });
 

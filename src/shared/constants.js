@@ -74,6 +74,7 @@ const ENGINES = {
 
 const TOOLS = {
   PLAN:         'plan',
+  GOAL:         'goal',
   READ_FILE:    'read_file',
   WRITE_FILE:   'write_file',
   REPLACE_CODE: 'replace_code',

@@ -89,7 +89,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('extrait les tokens d\'un fichier CSS simple', () => {
     const cssFile = path.join(tmpDir, 'tokens.css');
-    fs.writeFileSync(cssFile, `:root { --color-primary: #3B82F6; --spacing-md: 1rem; }`);
+    fs.writeFileSync(cssFile, ':root { --color-primary: #3B82F6; --spacing-md: 1rem; }');
     const r = readDesignTokens({ path: 'tokens.css' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.equal(r.total, 2);
@@ -100,7 +100,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('retourne ok:true avec total:0 si aucun token dans le fichier', () => {
     const cssFile = path.join(tmpDir, 'empty.css');
-    fs.writeFileSync(cssFile, `body { color: red; }`);
+    fs.writeFileSync(cssFile, 'body { color: red; }');
     const r = readDesignTokens({ path: 'empty.css' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.equal(r.total, 0);
@@ -110,7 +110,7 @@ describe('read_design_tokens — extraction CSS', () => {
   it('scanne tous les CSS si path absent', () => {
     const sub = path.join(tmpDir, 'sub');
     fs.mkdirSync(sub, { recursive: true });
-    fs.writeFileSync(path.join(sub, 'theme.css'), `:root { --bg: #fff; --text: #111; }`);
+    fs.writeFileSync(path.join(sub, 'theme.css'), ':root { --bg: #fff; --text: #111; }');
     const guard = rel => rel ? path.join(tmpDir, rel) : tmpDir;
     const r = readDesignTokens({}, guard, tmpDir);
     assert.ok(r.ok);
@@ -125,7 +125,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('structure retournée : { ok, files:[{ file, tokens:[{ name, value }] }], total }', () => {
     const cssFile2 = path.join(tmpDir, 'structure.css');
-    fs.writeFileSync(cssFile2, `:root { --accent: #6366F1; }`);
+    fs.writeFileSync(cssFile2, ':root { --accent: #6366F1; }');
     const r = readDesignTokens({ path: 'structure.css' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.ok(Array.isArray(r.files));
@@ -137,7 +137,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('extrait les variables SCSS ($var: value)', () => {
     const scssFile = path.join(tmpDir, 'tokens.scss');
-    fs.writeFileSync(scssFile, `$color-primary: #3B82F6;\n$spacing-lg: 2rem;\n$font-size: 16px;`);
+    fs.writeFileSync(scssFile, '$color-primary: #3B82F6;\n$spacing-lg: 2rem;\n$font-size: 16px;');
     const r = readDesignTokens({ path: 'tokens.scss' }, guardOk, tmpDir);
     assert.ok(r.ok, 'doit réussir');
     assert.ok(r.total >= 3, `total ${r.total} < 3`);
@@ -148,7 +148,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('les tokens SCSS ont source:"scss"', () => {
     const scssFile = path.join(tmpDir, 'typed.scss');
-    fs.writeFileSync(scssFile, `$accent: #7c6af7;`);
+    fs.writeFileSync(scssFile, '$accent: #7c6af7;');
     const r = readDesignTokens({ path: 'typed.scss' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.equal(r.files[0].tokens[0].source, 'scss');
@@ -156,7 +156,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('les tokens CSS ont source:"css"', () => {
     const cssFile3 = path.join(tmpDir, 'typed2.css');
-    fs.writeFileSync(cssFile3, `:root { --primary: #3B82F6; }`);
+    fs.writeFileSync(cssFile3, ':root { --primary: #3B82F6; }');
     const r = readDesignTokens({ path: 'typed2.css' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.equal(r.files[0].tokens[0].source, 'css');
@@ -164,7 +164,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('extrait les couleurs de fichiers JS de thème', () => {
     const jsFile = path.join(tmpDir, 'theme.js');
-    fs.writeFileSync(jsFile, `const theme = { colors: { 'primary': '#3B82F6', 'danger': '#ef4444' } };`);
+    fs.writeFileSync(jsFile, 'const theme = { colors: { \'primary\': \'#3B82F6\', \'danger\': \'#ef4444\' } };');
     const r = readDesignTokens({ path: 'theme.js' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.ok(r.total >= 2, `JS colors total ${r.total} < 2`);
@@ -175,7 +175,7 @@ describe('read_design_tokens — extraction CSS', () => {
 
   it('les tokens JS ont source:"js"', () => {
     const jsFile2 = path.join(tmpDir, 'colors.js');
-    fs.writeFileSync(jsFile2, `module.exports = { 'brand': '#7c6af7' };`);
+    fs.writeFileSync(jsFile2, 'module.exports = { \'brand\': \'#7c6af7\' };');
     const r = readDesignTokens({ path: 'colors.js' }, guardOk, tmpDir);
     assert.ok(r.ok);
     assert.equal(r.files[0].tokens[0].source, 'js');
@@ -184,7 +184,7 @@ describe('read_design_tokens — extraction CSS', () => {
   it('scanne les .scss en mode projet (path absent)', () => {
     const sub2 = path.join(tmpDir, 'scss-sub');
     fs.mkdirSync(sub2, { recursive: true });
-    fs.writeFileSync(path.join(sub2, 'vars.scss'), `$brand: #22c55e; $neutral: #6b7280;`);
+    fs.writeFileSync(path.join(sub2, 'vars.scss'), '$brand: #22c55e; $neutral: #6b7280;');
     const guard = rel => rel ? path.join(tmpDir, rel) : tmpDir;
     const r = readDesignTokens({}, guard, tmpDir);
     assert.ok(r.ok);
@@ -208,7 +208,7 @@ describe('constantes et familles design', () => {
     const tools = selectToolsForTask(
       ['read_file', 'generate_palette', 'read_design_tokens'],
       'génère une palette pour le thème',
-      {}
+      {},
     );
     assert.ok(tools.includes('generate_palette'),    'generate_palette doit être sélectionné');
     assert.ok(tools.includes('read_design_tokens'),  'read_design_tokens doit être sélectionné');
@@ -218,7 +218,7 @@ describe('constantes et familles design', () => {
     const tools = selectToolsForTask(
       ['generate_palette', 'read_design_tokens'],
       'vérifie la conformité WCAG',
-      {}
+      {},
     );
     assert.ok(tools.includes('generate_palette'));
   });
@@ -227,7 +227,7 @@ describe('constantes et familles design', () => {
     const tools = selectToolsForTask(
       ['generate_palette', 'read_design_tokens'],
       'liste les tokens CSS du projet',
-      {}
+      {},
     );
     assert.ok(tools.includes('read_design_tokens'));
   });
@@ -238,7 +238,7 @@ describe('constantes et familles design', () => {
     const tools = selectToolsForTask(
       ['generate_palette', 'read_design_tokens', 'read_file'],
       'analyser le code',
-      { forceFamilies }
+      { forceFamilies },
     );
     assert.ok(tools.includes('generate_palette'),   'forcé par persona designer');
     assert.ok(tools.includes('read_design_tokens'), 'forcé par persona designer');

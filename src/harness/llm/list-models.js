@@ -5,6 +5,16 @@ const DEEPSEEK_BASE = 'https://api.deepseek.com/v1';
 
 // Modèles connus par provider — utilisés comme filet si l'API retourne une liste partielle
 const STATIC_MODELS = {
+  // WebLLM : catalogue local, aucune clé API. Ces ids correspondent aux modèles
+  // prébuilds MLC utilisés par le renderer caché.
+  webllm: [
+    'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC',
+    'Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC',
+    'Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC',
+    'Qwen2.5-Coder-14B-Instruct-q4f16_1-MLC',
+    'Qwen2.5-Coder-3B-Instruct-q4f32_1-MLC',
+    'Qwen2.5-Coder-7B-Instruct-q4f32_1-MLC',
+  ],
   deepseek: [
     // V4 (courants, oct. 2026)
     'deepseek-v4-flash',
@@ -55,6 +65,10 @@ function _merge(apiList, staticList) {
  * @returns {Promise<string[]>} liste triée d'ids de modèles
  */
 async function listModels({ engine, apiKey, baseUrl }) {
+  // Moteurs locaux : liste statique, pas de clé API à exiger.
+  if (engine === 'webllm') return [...STATIC_MODELS.webllm];
+  if (engine === 'cpu') return []; // le modèle est un fichier GGUF choisi dans Paramètres
+
   if (!apiKey) throw new Error('Clé API manquante');
 
   if (engine === 'gemini') {

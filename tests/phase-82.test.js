@@ -25,7 +25,7 @@ describe('callApi — validation des args', () => {
     const r = await callApi({ url: 'https://api.example.com', token_key: 'mykey' }, { apiTokens: {} });
     assert.equal(r.ok, false);
     assert.ok(r.error.includes('TOKEN_INTROUVABLE'), `erreur inattendue: ${r.error}`);
-    assert.ok(r.error.includes('"mykey"'), `le nom de clé doit apparaître dans l'erreur`);
+    assert.ok(r.error.includes('"mykey"'), 'le nom de clé doit apparaître dans l\'erreur');
   });
 
   test('token_key introuvable quand apiTokens absent → TOKEN_INTROUVABLE', async () => {
@@ -274,7 +274,7 @@ describe('installSkill', () => {
   test('installation valide → ok + skill avec id et enabled:true', async () => {
     const r = await installSkill(
       { name: 'Security Reviewer', description: 'Analyse les failles', system_prompt: 'Tu cherches les vulnérabilités.' },
-      {}
+      {},
     );
     assert.equal(r.ok, true);
     assert.ok(r.skill.id, 'doit avoir un id');
@@ -359,7 +359,7 @@ describe('session grouping — logique _renderSessionList', () => {
   const fs   = require('node:fs');
   const path = require('node:path');
   const src  = fs.readFileSync(
-    path.join(__dirname, '../src/renderer-visible/app.js'), 'utf8'
+    path.join(__dirname, '../src/renderer-visible/app.js'), 'utf8',
   );
 
   // Extraction de la logique de groupement (sans DOM) depuis le code source.
@@ -440,7 +440,7 @@ describe('session grouping — logique _renderSessionList', () => {
 
   test('_renderSessionList contient bien le code de groupement dans app.js', () => {
     assert.ok(src.includes('const groups = new Map()'), 'Map de groupement présente');
-    assert.ok(src.includes("s.projectRoot || '__none__'"), "clé __none__ présente");
+    assert.ok(src.includes("s.projectRoot || '__none__'"), 'clé __none__ présente');
     assert.ok(src.includes('ws-item'), 'HTML du header workspace présent');
     assert.ok(src.includes('ws-item-count'), 'compteur de groupe présent');
   });

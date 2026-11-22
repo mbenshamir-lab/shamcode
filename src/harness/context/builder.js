@@ -21,7 +21,7 @@ const { MAX_CONTEXT_CHARS: DEFAULT_BUDGET } = require('../../shared/constants');
  * }} opts
  * @returns {string}  Bloc de contexte prêt à être inséré dans le prompt
  */
-async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET }) {
+async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET, topK = 5 }) {
   const parts = [];
 
   // 1. Arborescence du projet
@@ -67,7 +67,7 @@ async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars 
   if (ragStore) {
     try {
       const { retrieveRelevant } = require('../rag/retrieve');
-      const chunks = await retrieveRelevant(ragStore, task, { topK: 5, projectRoot });
+      const chunks = await retrieveRelevant(ragStore, task, { topK, projectRoot });
       if (chunks.length > 0) {
         const ragText = chunks.map(c =>
           `### ${c.path} (lignes ${c.startLine}-${c.endLine})\n\`\`\`\n${c.content}\n\`\`\``,

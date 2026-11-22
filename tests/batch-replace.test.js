@@ -74,7 +74,7 @@ test('batch_replace — remplace dans plusieurs fichiers .js', () => {
   const r = batchReplace({ pattern: 'foo', replacement: 'baz', ext: '.js' }, guard, root);
   assert.ok(r.ok, `Erreur inattendue : ${r.error}`);
   assert.ok(r.files_modified >= 2, `Attendu ≥2 fichiers modifiés, reçu ${r.files_modified}`);
-  assert.ok(r.total_replacements >= 3, `Attendu ≥3 remplacements (foo dans a.js + b.js)`);
+  assert.ok(r.total_replacements >= 3, 'Attendu ≥3 remplacements (foo dans a.js + b.js)');
 
   // Vérifier le contenu des fichiers modifiés
   const aContent = fs.readFileSync(path.join(root, 'a.js'), 'utf8');

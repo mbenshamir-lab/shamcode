@@ -44,7 +44,7 @@ describe('replaceCode fuzzy — préservation CRLF', () => {
       { path: 'test.js', old_string: 'function hello() {\n  return 1;\n}', new_string: 'function hello() {\n  return 42;\n}' },
       g,
       { backupBeforeWrite: false },
-      () => {}
+      () => {},
     );
 
     if (result.ok) {
@@ -70,7 +70,7 @@ describe('replaceCode fuzzy — préservation CRLF', () => {
       { path: 'test.js', old_string: 'return 1;', new_string: 'return 99;' },
       g,
       { backupBeforeWrite: false },
-      () => {}
+      () => {},
     );
 
     if (result.ok) {
@@ -84,11 +84,11 @@ describe('replaceCode fuzzy — préservation CRLF', () => {
   it('le code de restauration CRLF est présent dans fs.js', () => {
     assert.ok(
       fsSrc.includes("raw.includes('\\r\\n')") || fsSrc.includes('raw.includes("\\r\\n")'),
-      'détection CRLF absente de fs.js'
+      'détection CRLF absente de fs.js',
     );
     assert.ok(
       fsSrc.includes('\\r\\n') && fsSrc.includes('replace(/\\r?\\n/g'),
-      'restauration CRLF absente de fs.js'
+      'restauration CRLF absente de fs.js',
     );
   });
 
@@ -135,7 +135,7 @@ describe('parser.js — fence greedy pour fences imbriquées', () => {
     const result = extractToolCall(input);
     // Le JSON doit être extrait correctement (tool présent)
     assert.ok(!result.error || result.error === 'JSON_INVALIDE',
-      `résultat inattendu : ${JSON.stringify(result)}`
+      `résultat inattendu : ${JSON.stringify(result)}`,
     );
     // S'il parse, vérifier les valeurs
     if (!result.error) {

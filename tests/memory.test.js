@@ -91,6 +91,23 @@ test('scratchpad — get clé absente retourne null', () => {
   assert.equal(pad.get('absent'), null);
 });
 
+test('sessions — disque non inscriptible → session en mémoire, pas d\'exception', () => {
+  const blocked = path.join(TMP_DIR, 'fichier-bloquant');
+  fs.writeFileSync(blocked, 'x', 'utf8');
+  const previous = process.env.HARNESS_DATA_DIR;
+  process.env.HARNESS_DATA_DIR = blocked;
+  try {
+    const r = createSession({ task: 'test', projectRoot: TMP_DIR });
+    assert.equal(r.path, null, 'aucune persistance attendue');
+    assert.ok(r.session && r.session.steps, 'la session en mémoire doit rester utilisable');
+    assert.ok(r.id, 'un id reste disponible pour la trace');
+  } finally {
+    if (previous === undefined) delete process.env.HARNESS_DATA_DIR;
+    else process.env.HARNESS_DATA_DIR = previous;
+    fs.rmSync(blocked, { force: true });
+  }
+});
+
 // Nettoyage
 after(() => {
   try { fs.rmSync(TMP_DIR, { recursive: true, force: true }); } catch { /* ignoré */ }

@@ -8,7 +8,7 @@ const os   = require('os');
 
 // Sauvegarder + restaurer les env vars pour ne pas polluer les autres tests
 const ENV_KEYS = ['HARNESS_API_KEY', 'HARNESS_ENGINE', 'HARNESS_MODEL', 'HARNESS_BASE_URL'];
-let _savedEnv = {};
+const _savedEnv = {};
 
 before(() => {
   ENV_KEYS.forEach(k => { _savedEnv[k] = process.env[k]; delete process.env[k]; });

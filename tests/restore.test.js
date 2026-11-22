@@ -95,6 +95,6 @@ test('restore_file — backup_index hors limite → INDEX_HORS_LIMITE', () => {
   // Soit AUCUN_BACKUP_TROUVÉ (si aucun backup) soit INDEX_HORS_LIMITE (si quelques backups)
   assert.ok(
     r.error.includes('AUCUN_BACKUP_TROUVÉ') || r.error.includes('INDEX_HORS_LIMITE'),
-    `Attendu AUCUN_BACKUP_TROUVÉ ou INDEX_HORS_LIMITE, reçu : ${r.error}`
+    `Attendu AUCUN_BACKUP_TROUVÉ ou INDEX_HORS_LIMITE, reçu : ${r.error}`,
   );
 });

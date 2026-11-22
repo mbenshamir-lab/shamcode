@@ -64,7 +64,7 @@ describe('windows.js — openDesignWindow', () => {
   it('charge design.html',         () => assert.ok(src.includes('design.html')));
   it('frame:false',                () => assert.ok(src.includes('frame: false')));
   it('singleton : _designWin',     () => assert.ok(src.includes('_designWin')));
-  it('nettoie sur closed',         () => assert.ok(src.includes("_designWin = null")));
+  it('nettoie sur closed',         () => assert.ok(src.includes('_designWin = null')));
 });
 
 // ── ipc.js — handlers design ─────────────────────────────────────────────

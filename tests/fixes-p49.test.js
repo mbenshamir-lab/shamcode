@@ -47,7 +47,7 @@ describe('system prompt — ask_user usage conditionnel', () => {
     const p = buildSystemPrompt(['read_file', 'ask_user']);
     assert.ok(
       p.includes('PREMIÈRE action'),
-      'ask_user doit être autorisé en première action si tâche ambiguë'
+      'ask_user doit être autorisé en première action si tâche ambiguë',
     );
   });
 
@@ -55,7 +55,7 @@ describe('system prompt — ask_user usage conditionnel', () => {
     const p = buildSystemPrompt(['ask_user']);
     assert.ok(
       p.includes('milieu de tâche'),
-      'ask_user doit aussi être cadré pour le milieu de tâche'
+      'ask_user doit aussi être cadré pour le milieu de tâche',
     );
   });
 
@@ -63,7 +63,7 @@ describe('system prompt — ask_user usage conditionnel', () => {
     const p = buildSystemPrompt(['ask_user']);
     assert.ok(
       !p.includes('premier réflexe'),
-      'L\'ancienne formulation "premier réflexe" ne doit plus apparaître'
+      'L\'ancienne formulation "premier réflexe" ne doit plus apparaître',
     );
   });
 
@@ -71,7 +71,7 @@ describe('system prompt — ask_user usage conditionnel', () => {
     const p = buildSystemPrompt(['ask_user']);
     assert.ok(
       !p.includes('INTERDIT comme première action'),
-      'L\'interdiction absolue en première action est levée'
+      'L\'interdiction absolue en première action est levée',
     );
   });
 });
@@ -83,7 +83,7 @@ describe('system prompt — AGENTS.md mémoire vivante', () => {
     const p = buildSystemPrompt(['write_file'], '', { agentsExists: false });
     assert.ok(
       !p.includes('FICHIER AGENTS'),
-      'Sans AGENTS.md existant, aucune section AGENTS ne doit être injectée'
+      'Sans AGENTS.md existant, aucune section AGENTS ne doit être injectée',
     );
   });
 
@@ -91,7 +91,7 @@ describe('system prompt — AGENTS.md mémoire vivante', () => {
     const p = buildSystemPrompt(['write_file'], '', { agentsExists: false });
     assert.ok(
       p.includes('AGENTS.md'),
-      'La règle de mise à jour AGENTS.md doit toujours être présente'
+      'La règle de mise à jour AGENTS.md doit toujours être présente',
     );
   });
 
@@ -99,7 +99,7 @@ describe('system prompt — AGENTS.md mémoire vivante', () => {
     const p = buildSystemPrompt(['write_file'], '', { agentsExists: false });
     assert.ok(
       !p.includes('propose à l\'utilisateur'),
-      'L\'agent ne doit jamais demander permission pour créer AGENTS.md'
+      'L\'agent ne doit jamais demander permission pour créer AGENTS.md',
     );
   });
 
@@ -107,7 +107,7 @@ describe('system prompt — AGENTS.md mémoire vivante', () => {
     const p = buildSystemPrompt(['write_file'], '', { agentsExists: false });
     assert.ok(
       p.includes('write_file'),
-      'La règle AGENTS.md doit mentionner write_file'
+      'La règle AGENTS.md doit mentionner write_file',
     );
   });
 
@@ -121,7 +121,7 @@ describe('system prompt — AGENTS.md mémoire vivante', () => {
     const p = buildSystemPrompt(['write_file'], '', { agentsExists: true, agentsContent: 'X' });
     assert.ok(
       p.includes('FIN de chaque tâche') || p.includes('fin de chaque'),
-      'La règle de mise à jour AGENTS.md en fin de tâche doit être présente même avec AGENTS.md existant'
+      'La règle de mise à jour AGENTS.md en fin de tâche doit être présente même avec AGENTS.md existant',
     );
   });
 
@@ -142,14 +142,14 @@ describe('agent.js — ask_user autorisé en première étape', () => {
   it('le guard ASK_USER_PREMIER_STEP_INTERDIT est supprimé', () => {
     assert.ok(
       !src.includes('ASK_USER_PREMIER_STEP_INTERDIT'),
-      'Le hard-block ask_user step 1 ne doit plus exister'
+      'Le hard-block ask_user step 1 ne doit plus exister',
     );
   });
 
   it('ask_user est toujours un outil reconnu (TOOLS.ASK_USER)', () => {
     assert.ok(
       src.includes('ASK_USER') || src.includes('ask_user'),
-      'ask_user doit rester référencé dans agent.js'
+      'ask_user doit rester référencé dans agent.js',
     );
   });
 });

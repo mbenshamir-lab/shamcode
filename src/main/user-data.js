@@ -80,4 +80,25 @@ function resolveUserDataDir({ appData, projectRoot }) {
   return own;
 }
 
-module.exports = { resolveUserDataDir, APP_DIR_NAME, MARKER_NAME };
+// Migration unique : quand une copie obtient son propre dossier alors que la config
+// historique vit encore dans le dossier partagé, elle en reprend une copie. Les clés
+// API sont chiffrées par DPAPI (liées à l'utilisateur Windows, pas au chemin) : elles
+// restent déchiffrables. Sessions/backups/RAG ne sont pas copiés (volumes et risque
+// de mélange) — ils repartent propres, ce qui est le but de l'isolation.
+function migrateLegacyConfig({ appData, userDataDir }) {
+  const shared = path.join(appData, APP_DIR_NAME);
+  if (_normalize(shared) === _normalize(userDataDir)) return false;
+
+  const source = path.join(shared, 'config.json');
+  const dest   = path.join(userDataDir, 'config.json');
+  try {
+    if (!fs.existsSync(source) || fs.existsSync(dest)) return false;
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.copyFileSync(source, dest);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { resolveUserDataDir, migrateLegacyConfig, APP_DIR_NAME, MARKER_NAME };

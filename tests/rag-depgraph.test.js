@@ -58,8 +58,8 @@ describe('retrieveRelevant — expansion via dep graph', () => {
 
   test('chunk de dépendance ajouté avec dep_expanded:true', async () => {
     // a.js importe b.js
-    write(root, 'src/a.js', `import './b.js'; export function main() {}`);
-    write(root, 'src/b.js', `export function helper() {}`);
+    write(root, 'src/a.js', 'import \'./b.js\'; export function main() {}');
+    write(root, 'src/b.js', 'export function helper() {}');
 
     // Construire le graphe
     clearCache();
@@ -87,8 +87,8 @@ describe('retrieveRelevant — expansion via dep graph', () => {
   });
 
   test('pas de doublon si la dépendance est déjà dans les résultats directs', async () => {
-    write(root, 'src/a.js', `import './b.js'; export function main() {}`);
-    write(root, 'src/b.js', `export function helper() {}`);
+    write(root, 'src/a.js', 'import \'./b.js\'; export function main() {}');
+    write(root, 'src/b.js', 'export function helper() {}');
 
     clearCache();
     require('../src/harness/context/depgraph.js').buildDepGraph(root);
@@ -114,8 +114,8 @@ describe('retrieveRelevant — expansion via dep graph', () => {
   });
 
   test('score dep_expanded = score direct × 0.6', async () => {
-    write(root, 'src/main.js', `import './lib.js'; export const app = 1;`);
-    write(root, 'src/lib.js', `export const util = 2;`);
+    write(root, 'src/main.js', 'import \'./lib.js\'; export const app = 1;');
+    write(root, 'src/lib.js', 'export const util = 2;');
 
     clearCache();
     require('../src/harness/context/depgraph.js').buildDepGraph(root);
@@ -162,7 +162,7 @@ describe('retrieveRelevant — expansion via dep graph', () => {
   test('max DEP_EXTRA_MAX chunks supplémentaires (plafond 3)', async () => {
     // a.js importe 5 fichiers
     const imports = ['b','c','d','e','f'].map(n => `'./src/${n}.js'`).join(', ');
-    write(root, 'src/a.js', `import { x } from './src/b.js';\nimport { y } from './src/c.js';\nimport { z } from './src/d.js';\nimport { w } from './src/e.js';\nimport { v } from './src/f.js';`);
+    write(root, 'src/a.js', 'import { x } from \'./src/b.js\';\nimport { y } from \'./src/c.js\';\nimport { z } from \'./src/d.js\';\nimport { w } from \'./src/e.js\';\nimport { v } from \'./src/f.js\';');
     ['b','c','d','e','f'].forEach(n => write(root, `src/${n}.js`, `export const ${n} = 1;`));
 
     clearCache();

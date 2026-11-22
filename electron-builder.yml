@@ -17,6 +17,12 @@ files:
   - "!node_modules/onnxruntime-node/**"
   - "!node_modules/sharp/**"
   - "!node_modules/@img/**"
+  # Moteur CPU/GGUF : on garde le binaire x64 et Vulkan (GPU NVIDIA/AMD/Intel).
+  # CUDA (544 Mo) et ARM64 sont inutiles pour la cible Windows x64 ; node-llama-cpp
+  # retombe sur Vulkan/CPU quand ces paquets optionnels sont absents.
+  - "!node_modules/@node-llama-cpp/win-x64-cuda/**"
+  - "!node_modules/@node-llama-cpp/win-x64-cuda-ext/**"
+  - "!node_modules/@node-llama-cpp/win-arm64/**"
   - "!**/*.map"
   - "!**/*.test.js"
   - "!**/node_modules/.cache/**"

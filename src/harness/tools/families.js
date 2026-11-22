@@ -18,7 +18,7 @@
 
 // Toujours exposés (le geste de base d'une tâche de code)
 const CORE = [
-  'plan', 'read_file', 'write_file', 'replace_code', 'list_dir', 'search_grep',
+  'plan', 'goal', 'read_file', 'write_file', 'replace_code', 'list_dir', 'search_grep',
   'run_tests', 'get_project_info', 'scratchpad', 'project_note', 'ask_user', 'note_user', 'finish',
   'notify_user',
 ];

@@ -60,7 +60,7 @@ class McpRegistry {
   /** Retourne les lignes de description prêtes pour availableTools[]. */
   get toolDescriptions() {
     return this._toolDefs.map(t =>
-      `${t.name} — args: ${JSON.stringify(t.inputSchema?.properties ?? {})} — (MCP: ${t._connName}) ${t.description}`
+      `${t.name} — args: ${JSON.stringify(t.inputSchema?.properties ?? {})} — (MCP: ${t._connName}) ${t.description}`,
     );
   }
 

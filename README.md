@@ -6,10 +6,13 @@ Agent de code desktop pour Windows, piloté par un LLM. Il tourne en local (WebL
 
 ## Fonctionnalités
 
-- **LLM local ou cloud** : WebLLM (WebGPU), moteur CPU, Gemini, Claude, endpoint compatible OpenAI, avec chaîne de repli entre moteurs.
+- **LLM local ou cloud** : WebLLM (WebGPU), moteur CPU GGUF, Gemini, Claude, DeepSeek, endpoint compatible OpenAI, avec chaîne de repli entre moteurs.
 - **Outils de fichiers sûrs** : lecture, écriture, remplacement de code, listage — chaque accès passe par un *path-guard* et chaque écriture est précédée d'une sauvegarde.
 - **Shell désactivé par défaut** : `run_shell` n'existe que si tu l'actives dans la configuration. Les outils `git_*` sont en lecture seule.
 - **Clés API chiffrées** : stockées via `safeStorage` d'Electron (DPAPI sous Windows), jamais en clair ni dans les logs.
+- **Performance locale** : le prompt, le RAG et l'historique sont calibrés selon le moteur — complets sur le cloud, réduits sur un modèle local (moins de tokens à préfill). Le moteur GGUF réutilise son cache KV entre les étapes. Mesure : `npm run bench:prompt`.
+- **Médias dans le chat** : les images et vidéos générées par IA ou produites par du code s'affichent inline (lecteur vidéo intégré), avec ouverture dans la visionneuse.
+- **Objectifs persistants** : pour chaque tâche, l'agent fixe un objectif avec des critères vérifiables, un budget et un journal de décisions (D0–D3). Il ne peut pas terminer tant qu'un critère n'est pas prouvé (fichier relu, test vert) ; sinon l'objectif est marqué bloqué, avec la raison.
 - **Dictée vocale** locale (Whisper en WASM), serveur MCP, CLI (`bin/harness.js`), planificateur de tâches.
 
 ## Installation (utilisateurs)
@@ -18,19 +21,22 @@ Agent de code desktop pour Windows, piloté par un LLM. Il tourne en local (WebL
 2. Lance l'installeur (Windows 10/11, x64). Il n'est pas signé : Windows SmartScreen peut demander une confirmation.
 3. Au premier lancement, ouvre les **Paramètres** et renseigne ton moteur : un modèle local (GPU requis, téléchargement au premier usage) ou une clé API cloud.
 
-Aucune clé ni donnée n'est fournie avec l'application : chaque utilisateur démarre à vide. Tes données sont dans `%APPDATA%\code-harness`.
+Aucune clé ni donnée n'est fournie avec l'application : chaque utilisateur démarre à vide. Tes données sont dans `%APPDATA%\code-harness` (les copies du dépôt reçoivent un dossier suffixé pour ne rien partager).
 
 ## Développement
 
-Prérequis : Node.js 20 LTS, Windows.
+Prérequis : Node.js 20 LTS ou plus récent (la CI utilise Node 22), Windows.
 
 ```bash
 npm install
 npm start          # lance l'application Electron
 npm test           # tests (node --test)
 npm run lint
+node tests/eval/run.js  # eval déterministe du harnais (19 tâches, sans réseau)
 npm run build:win  # génère l'installeur NSIS dans dist/
 ```
+
+Si `%APPDATA%` n'est pas inscriptible (poste verrouillé, sandbox), l'app bascule automatiquement ses données dans `.harness-runtime/` à la racine du projet. `HARNESS_USER_DATA_DIR=<dossier>` force un autre emplacement (mode portable).
 
 ## Architecture
 

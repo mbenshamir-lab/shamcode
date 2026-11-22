@@ -17,9 +17,10 @@
     "build:win": "electron-builder --win --config electron-builder.yml",
     "build:win:dir": "electron-builder --win --dir --config electron-builder.yml",
     "test": "node --test tests/*.test.js",
+    "bench:prompt": "node scripts/bench-prompt.js",
     "eval": "node tests/eval/run.js",
-    "lint": "eslint src/main src/harness src/shared tests",
-    "lint:fix": "eslint src/main src/harness src/shared tests --fix",
+    "lint": "eslint src/main src/harness src/shared src/renderer-visible tests",
+    "lint:fix": "eslint src/main src/harness src/shared src/renderer-visible tests --fix",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.js\""
   },

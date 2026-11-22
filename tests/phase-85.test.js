@@ -84,16 +84,16 @@ test('constante WEB_SEARCH = "web_search"', () => {
 test('dispatch web_search — appelle webSearch', async () => {
   // On vérifie que le case existe dans index.js en cherchant dans le source
   const src = fs.readFileSync(path.join(ROOT, 'src/harness/tools/index.js'), 'utf8');
-  assert.ok(src.includes("case TOOLS.WEB_SEARCH:"), 'case WEB_SEARCH manquant dans dispatch');
+  assert.ok(src.includes('case TOOLS.WEB_SEARCH:'), 'case WEB_SEARCH manquant dans dispatch');
   assert.ok(src.includes('webSearch(args)'),         'appel webSearch(args) manquant');
-  assert.ok(src.includes("require('./web-search')"), "import web-search manquant");
+  assert.ok(src.includes("require('./web-search')"), 'import web-search manquant');
 });
 
 // ── 5. Agent — toolNames ────────────────────────────────────────────────────
 
 test('agent — web_search dans toolNames par défaut (enableWebSearch non défini)', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/harness/agent.js'), 'utf8');
-  assert.ok(src.includes("config.enableWebSearch !== false"), 'garde enableWebSearch manquante');
+  assert.ok(src.includes('config.enableWebSearch !== false'), 'garde enableWebSearch manquante');
   assert.ok(src.includes("toolNames.push('web_search')"),    'push web_search manquant');
 });
 

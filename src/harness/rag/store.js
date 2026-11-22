@@ -1,16 +1,15 @@
 /**
  * Stockage JSON des chunks RAG (MVP).
- * Persisté dans %APPDATA%/code-harness/rag-<hash>.json.
+ * Persisté dans <dataDir>/rag/<storeId>.json (%APPDATA%/code-harness hors Electron).
  * v2 : SQLite via better-sqlite3.
  */
 
 const fs   = require('fs');
 const path = require('path');
-const os   = require('os');
+const { getDataDir } = require('../../shared/data-dir');
 
 function getRagDir() {
-  const base = process.env.APPDATA || path.join(os.homedir(), '.config');
-  return path.join(base, 'code-harness', 'rag');
+  return path.join(getDataDir(), 'rag');
 }
 
 /**

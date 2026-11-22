@@ -168,7 +168,9 @@ describe('Pastille de modèle — sélection d\'un fournisseur secondaire', () =
   });
 
   it('la barre de statut reflète le fournisseur actif', () => {
-    assert.match(appSrc, /const hasKey = active \? !!active\.apiKey : !!/);
+    // Les moteurs locaux (webllm/cpu) n'exigent pas de clé : le ternaire a été
+    // étendu (ADR-033/phase 118) — le fournisseur actif reste prioritaire.
+    assert.match(appSrc, /const hasKey = active \? !!active\.apiKey : \(localEngine \|\| !!/);
   });
 
   it('le modèle actif est marqué dans le groupe du fournisseur sélectionné', () => {

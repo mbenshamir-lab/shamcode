@@ -6,13 +6,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const os   = require('os');
-const { snapshot } = require('../safety/backup');
-
-function getBackupDir() {
-  const base = process.env.APPDATA || path.join(os.homedir(), '.config');
-  return path.join(base, 'code-harness', 'backups');
-}
+const { snapshot, fileKey, getBackupDir } = require('../safety/backup');
 
 /**
  * Liste ou restaure un fichier depuis ses backups.
@@ -31,11 +25,12 @@ function restoreFile({ path: relPath, list = false, backup_index = 0 }, guard) {
   let absPath;
   try { absPath = guard(relPath); } catch (e) { return { ok: false, error: e.message }; }
 
-  const BACKUP_DIR = getBackupDir();
+  // Ne lister que les backups de CE fichier : le dossier est indexé par chemin absolu.
+  const BACKUP_DIR = path.join(getBackupDir(), fileKey(absPath));
   const basename   = path.basename(relPath);
 
   // Lister tous les backups du fichier (les plus récents en premier)
-  let backups = [];
+  const backups = [];
   try {
     if (!fs.existsSync(BACKUP_DIR)) {
       return list

@@ -40,6 +40,9 @@ function _onDonationConfirmed(mainWin, win) {
  * @returns {{ visibleWin: BrowserWindow, hiddenWin: BrowserWindow }}
  */
 function createWindows(_config) {
+  // Thème passé au renderer pour être appliqué avant le premier paint :
+  // sans ça, un utilisateur en thème clair voit un flash sombre au lancement.
+  const bootTheme = _config?.theme === 'light' ? 'light' : 'dark';
   const visibleWin = new BrowserWindow({
     width: 1000,
     height: 750,
@@ -47,6 +50,7 @@ function createWindows(_config) {
     icon: ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: [`--sham-theme=${bootTheme}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,  // nécessaire pour require() dans le preload (Electron 20+)
@@ -266,7 +270,7 @@ function openDonationWindow(parentWin, mainWin) {
     if (/\/(auth|login|register|stores\/store_)/.test(url)) return;
     try {
       const text = await _donationWin.webContents.executeJavaScript(
-        `(document.title + ' ' + (document.body ? document.body.innerText : '')).substring(0, 1200).toLowerCase()`
+        '(document.title + \' \' + (document.body ? document.body.innerText : \'\')).substring(0, 1200).toLowerCase()',
       );
       if (CONFIRM_TEXT_KEYS.some(k => text.includes(k))) {
         confirmed = true;

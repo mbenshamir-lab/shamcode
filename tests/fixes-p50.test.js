@@ -106,7 +106,7 @@ describe('styles.css — .chat-todo', () => {
   it('.chat-todo-item.active a une animation (spinner)', () => {
     assert.ok(
       css.includes('.chat-todo-item.active') && css.includes('animation'),
-      '.chat-todo-item.active doit avoir une animation'
+      '.chat-todo-item.active doit avoir une animation',
     );
   });
 
@@ -119,7 +119,7 @@ describe('styles.css — .chat-todo', () => {
   it('.chat-todo-check::after affiche ✓ quand done', () => {
     assert.ok(
       css.includes('.chat-todo-item.done .chat-todo-check::after'),
-      'Le check mark doit apparaître pour les steps done'
+      'Le check mark doit apparaître pour les steps done',
     );
   });
 });
@@ -226,7 +226,7 @@ describe('app.js — _tpReset réinitialise chat todo', () => {
   it('_tpReset montre tp-exec-empty (classList.remove hidden)', () => {
     assert.ok(
       block.includes('execEmpty') && block.includes("remove('hidden')"),
-      '_tpReset doit afficher l\'état vide du panneau exécution'
+      '_tpReset doit afficher l\'état vide du panneau exécution',
     );
   });
 });

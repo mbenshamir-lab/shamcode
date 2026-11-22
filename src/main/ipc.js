@@ -4,7 +4,7 @@ const { IPC, APPS_IPC, PROCS_IPC, MAX_CONTEXT_CHARS } = require('../shared/const
 const { openSettingsWindow, openDesignWindow, openDonationWindow } = require('./windows');
 const { approvalRequired } = require('../shared/approval');
 const { notifyTaskComplete, notifyUser: _notifyUser } = require('./notifications');
-const { listAll: listAllProcs, addListener: addProcListener, removeProcListener } = require('../harness/tools/process-runner');
+const { listAll: listAllProcs, stopProcess: stopProcessRun, addListener: addProcListener, removeProcListener } = require('../harness/tools/process-runner');
 const { AppsManager } = require('./apps-manager');
 const { createSharedBus } = require('../harness/tools/message-bus');
 const { listModels }         = require('../harness/llm/list-models');
@@ -86,6 +86,8 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   const _procUpdateCb = (procs) => { visibleWin.webContents.send(PROCS_IPC.UPDATE, procs); };
   addProcListener(_procUpdateCb);
   ipcMain.handle(PROCS_IPC.LIST, () => ({ ok: true, processes: listAllProcs() }));
+  // Arrêt manuel depuis le panneau : le harness expose déjà stopProcess({ name }).
+  ipcMain.handle(PROCS_IPC.STOP, (_, { name } = {}) => stopProcessRun({ name }));
 
   // Envoyer la config au renderer caché dès que la page est chargée
   hiddenWin.webContents.once('did-finish-load', () => {

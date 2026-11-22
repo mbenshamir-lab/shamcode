@@ -55,7 +55,7 @@ function _tryExists(absPath) {
 
 function _resolveImport(fromAbsPath, raw, projectRoot) {
   // Python dot notation : '.foo' → './foo', '..bar' → '../bar'
-  let normalized = /^\.+[a-zA-Z_]/.test(raw) ? raw.replace(/^(\.+)([a-zA-Z_])/, '$1/$2') : raw;
+  const normalized = /^\.+[a-zA-Z_]/.test(raw) ? raw.replace(/^(\.+)([a-zA-Z_])/, '$1/$2') : raw;
 
   const candidate = path.resolve(path.dirname(fromAbsPath), normalized);
   if (!candidate.startsWith(projectRoot)) return null;

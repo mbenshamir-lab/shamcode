@@ -93,7 +93,7 @@ describe('agent — nudge vérification après écriture', () => {
     assert.ok(afterWriteMsg, 'doit y avoir un message après write_file');
     assert.ok(
       afterWriteMsg.content.includes('VÉRIFICATION OBLIGATOIRE'),
-      `Le message après write_file doit contenir VÉRIFICATION OBLIGATOIRE.\nObtenu: ${afterWriteMsg.content.slice(0, 300)}`
+      `Le message après write_file doit contenir VÉRIFICATION OBLIGATOIRE.\nObtenu: ${afterWriteMsg.content.slice(0, 300)}`,
     );
 
     try { fs.rmSync(dir, { recursive: true }); } catch {}
@@ -133,7 +133,7 @@ describe('agent — nudge vérification après écriture', () => {
     assert.ok(
       afterReplaceMsg.content.includes('BLOC_INTROUVABLE') ||
       afterReplaceMsg.content.includes('Relis le fichier entier'),
-      `Le message doit mentionner BLOC_INTROUVABLE ou guider vers read_file.\nObtenu: ${afterReplaceMsg.content.slice(0, 400)}`
+      `Le message doit mentionner BLOC_INTROUVABLE ou guider vers read_file.\nObtenu: ${afterReplaceMsg.content.slice(0, 400)}`,
     );
 
     try { fs.rmSync(dir, { recursive: true }); } catch {}
@@ -179,7 +179,7 @@ describe('agent — budget précoce à 5 étapes', () => {
     assert.ok(msg5, 'doit y avoir un message à l\'étape 5');
     assert.ok(
       msg5.content.includes('⚠️') || msg5.content.includes('prévois'),
-      `Le message à l'étape 5 doit contenir ⚠️ ou "prévois".\nObtenu: ${msg5?.content?.slice(0, 300)}`
+      `Le message à l'étape 5 doit contenir ⚠️ ou "prévois".\nObtenu: ${msg5?.content?.slice(0, 300)}`,
     );
 
     try { fs.rmSync(dir, { recursive: true }); } catch {}
@@ -194,11 +194,11 @@ describe('system.js — règle 9 vérification après écriture', () => {
     const prompt = buildSystemPrompt(['read_file', 'write_file', 'finish'], '');
     assert.ok(
       prompt.includes('write_file ou replace_code réussi'),
-      'Le prompt doit mentionner la règle de vérification après écriture'
+      'Le prompt doit mentionner la règle de vérification après écriture',
     );
     assert.ok(
       prompt.includes('read_file') && prompt.includes('intégration'),
-      'Le prompt doit mentionner read_file et intégration dans la règle 9'
+      'Le prompt doit mentionner read_file et intégration dans la règle 9',
     );
   });
 

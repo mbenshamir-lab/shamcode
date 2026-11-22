@@ -154,7 +154,7 @@ class McpClient extends EventEmitter {
               reject(new Error(`Réponse MCP non-JSON : ${raw.slice(0, 200)}`));
             }
           });
-        }
+        },
       );
       req.on('error', reject);
       const timer = setTimeout(() => {

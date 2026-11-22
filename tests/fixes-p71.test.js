@@ -6,13 +6,13 @@ const fs     = require('fs');
 const path   = require('path');
 
 const htmlSrc = fs.readFileSync(
-  path.join(__dirname, '../src/renderer-visible/index.html'), 'utf8'
+  path.join(__dirname, '../src/renderer-visible/index.html'), 'utf8',
 );
 const cssSrc = fs.readFileSync(
-  path.join(__dirname, '../src/renderer-visible/styles.css'), 'utf8'
+  path.join(__dirname, '../src/renderer-visible/styles.css'), 'utf8',
 );
 const appSrc = fs.readFileSync(
-  path.join(__dirname, '../src/renderer-visible/app.js'), 'utf8'
+  path.join(__dirname, '../src/renderer-visible/app.js'), 'utf8',
 );
 
 // ── HTML — structure 4 parties ───────────────────────────────────────────────
@@ -64,29 +64,29 @@ describe('Phase 71 — CSS sidebar collapsed et layout', () => {
     assert.match(
       cssSrc,
       /\.sb-part-3\s*\{[^}]*flex:\s*0 0 31\.25%/,
-      '.sb-part-3 doit avoir flex: 0 0 31.25%'
+      '.sb-part-3 doit avoir flex: 0 0 31.25%',
     );
   });
 
   it('déclare #sidebar.sidebar-collapsed avec width réduite', () => {
     assert.ok(
       cssSrc.includes('sidebar-collapsed'),
-      '#sidebar.sidebar-collapsed absent'
+      '#sidebar.sidebar-collapsed absent',
     );
     assert.ok(
       cssSrc.includes('44px'),
-      'width 44px absent pour sidebar-collapsed'
+      'width 44px absent pour sidebar-collapsed',
     );
   });
 
   it('masque .sb-label en mode collapsed', () => {
     assert.ok(
       cssSrc.includes('.sb-label'),
-      '.sb-label absent du CSS'
+      '.sb-label absent du CSS',
     );
     assert.ok(
       cssSrc.includes('sidebar-collapsed') && cssSrc.includes('.sb-label'),
-      'règle de masquage .sb-label absente'
+      'règle de masquage .sb-label absente',
     );
   });
 
@@ -102,7 +102,7 @@ describe('Phase 71 — CSS sidebar collapsed et layout', () => {
   it('déclare .sb-part-4 avec margin-top: auto', () => {
     assert.ok(
       cssSrc.includes('.sb-part-4') && cssSrc.includes('margin-top: auto'),
-      '.sb-part-4 avec margin-top: auto absent'
+      '.sb-part-4 avec margin-top: auto absent',
     );
   });
 
@@ -114,47 +114,47 @@ describe('Phase 71 — JS sidebar logique', () => {
   it('_renderSessionList trie par createdAt décroissant', () => {
     assert.ok(
       appSrc.includes('_renderSessionList'),
-      '_renderSessionList absent de app.js'
+      '_renderSessionList absent de app.js',
     );
     assert.ok(
       appSrc.includes('createdAt') && appSrc.includes('sort'),
-      'tri par createdAt absent'
+      'tri par createdAt absent',
     );
   });
 
   it('btn-sidebar-collapse toggle sidebar-collapsed', () => {
     assert.ok(
       appSrc.includes('btn-sidebar-collapse'),
-      'btn-sidebar-collapse absent de app.js'
+      'btn-sidebar-collapse absent de app.js',
     );
     assert.ok(
       appSrc.includes('sidebar-collapsed'),
-      'sidebar-collapsed absent de app.js'
+      'sidebar-collapsed absent de app.js',
     );
   });
 
   it('btn-search-session affiche/masque sb-search-wrap', () => {
     assert.ok(
       appSrc.includes('btn-search-session'),
-      'btn-search-session absent de app.js'
+      'btn-search-session absent de app.js',
     );
     assert.ok(
       appSrc.includes('sb-search-wrap'),
-      'sb-search-wrap absent de app.js'
+      'sb-search-wrap absent de app.js',
     );
   });
 
   it('filtre les sessions par texte de tâche', () => {
     assert.ok(
       appSrc.includes('sbSearchInput') && appSrc.includes('toLowerCase'),
-      'filtre de recherche absent'
+      'filtre de recherche absent',
     );
   });
 
   it('n\'utilise plus _collapsedGroups (groupes supprimés)', () => {
     assert.ok(
       !appSrc.includes('_collapsedGroups'),
-      '_collapsedGroups doit être supprimé (liste plate, pas de groupes)'
+      '_collapsedGroups doit être supprimé (liste plate, pas de groupes)',
     );
   });
 

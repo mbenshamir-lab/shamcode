@@ -17,7 +17,7 @@ describe('system prompt — règle ask_user', () => {
     // Phase 53 : ask_user autorisé en première action si tâche floue, mais toujours conditionnel
     assert.ok(
       p.includes('NE PAS appeler ask_user') || p.includes('UNIQUEMENT si'),
-      'La règle doit toujours conditionner explicitement ask_user'
+      'La règle doit toujours conditionner explicitement ask_user',
     );
   });
 
@@ -30,7 +30,7 @@ describe('system prompt — règle ask_user', () => {
     const p = buildSystemPrompt(['read_file', 'ask_user']);
     assert.ok(
       p.includes('irréductible') || p.includes('irréversible'),
-      'ask_user doit être réservé aux ambiguïtés irréductibles'
+      'ask_user doit être réservé aux ambiguïtés irréductibles',
     );
   });
 
@@ -48,7 +48,7 @@ describe('app.js — _appendAskUserCard structure', () => {
   const fs = require('fs');
   const src = fs.readFileSync(
     require('path').join(__dirname, '../src/renderer-visible/app.js'),
-    'utf8'
+    'utf8',
   );
 
   // Trouver la fonction _appendAskUserCard
@@ -87,7 +87,7 @@ describe('app.js — _appendAskUserCard structure', () => {
   it('Enter sans Shift déclenche submitFn (e.preventDefault)', () => {
     assert.ok(
       fnBody.includes('!e.shiftKey') && fnBody.includes('e.preventDefault()'),
-      'Le handler keydown doit bloquer Enter (sans Shift) avec preventDefault'
+      'Le handler keydown doit bloquer Enter (sans Shift) avec preventDefault',
     );
   });
 
@@ -106,7 +106,7 @@ describe('styles.css — ask-card visually distinct', () => {
   const path = require('path');
   const css  = fs.readFileSync(
     path.join(__dirname, '../src/renderer-visible/styles.css'),
-    'utf8'
+    'utf8',
   );
 
   // Extraire le bloc .ask-card

@@ -10,12 +10,11 @@
 
 const fs   = require('fs');
 const path = require('path');
-const os   = require('os');
 const crypto = require('crypto');
+const { getDataDir } = require('../../shared/data-dir');
 
 function getSessionsDir() {
-  const base = process.env.APPDATA || path.join(os.homedir(), '.config');
-  return path.join(base, 'code-harness', 'sessions');
+  return path.join(getDataDir(), 'sessions');
 }
 
 /**
@@ -28,12 +27,17 @@ function createSession({ task, projectRoot }) {
   const createdAt = new Date().toISOString();
   const session   = { id, createdAt, projectRoot, task, steps: [], result: null, scratchpad: '' };
 
-  const dir = getSessionsDir();
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${id}.json`);
-  _write(filePath, session);
-
-  return { id, path: filePath, session };
+  try {
+    const dir = getSessionsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const filePath = path.join(dir, `${id}.json`);
+    _write(filePath, session);
+    return { id, path: filePath, session };
+  } catch {
+    // Disque en lecture seule / ACL : la tâche doit continuer sans persistance.
+    // Le harness ne doit jamais refuser une demande parce que le journal échoue.
+    return { id, path: null, session };
+  }
 }
 
 /**

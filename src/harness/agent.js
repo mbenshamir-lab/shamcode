@@ -18,7 +18,7 @@ const { selectToolsForTask, describeFamilies } = require('./tools/families');
 const { McpRegistry }           = require('./mcp/registry');
 const { makeGuard }             = require('./safety/path-guard');
 const { buildSystemPrompt }     = require('./prompts/system');
-const { resolvePromptProfile }  = require('./prompts/profile');
+const { resolveModelPolicy }    = require('./prompts/model-policy');
 const { resolvePersona }        = require('./prompts/personas');
 const { detectLanguage, getLangRules } = require('./prompts/by-language');
 const { buildContext }          = require('./context/builder');
@@ -37,6 +37,9 @@ const { _detectRunner }     = require('./tools/test-runner');
 const { disposeLsp }        = require('./tools/lsp');
 const { recordFeedback, loadFeedback } = require('./feedback/store');
 const { buildFeedbackSummary }         = require('./feedback/advisor');
+const { loadActiveGoal, saveGoal, archiveActiveGoal } = require('./goals/store');
+const { goalSummary }                   = require('./goals/model');
+const { evaluateGoalCompletion, shouldWarnBudget } = require('./goals/policy');
 const crypto = require('crypto');
 const fs     = require('fs');
 const path   = require('path');
@@ -69,9 +72,9 @@ function _projectHasTests(projectRoot) {
 }
 
 /** Lit le guide du projet : AGENTS.md/Sham.md, sinon un fichier de consignes existant. Retourne '' si absent. */
-function _readAgentsFile(projectRoot) {
+function _readAgentsFile(projectRoot, agentsMaxChars = AGENTS_MAX_CHARS) {
   const groups = [
-    [AGENTS_CANDIDATES, AGENTS_MAX_CHARS],
+    [AGENTS_CANDIDATES, agentsMaxChars],
     [CONVENTION_CANDIDATES, CONVENTION_MAX_CHARS],
   ];
   for (const [names, maxChars] of groups) {
@@ -150,8 +153,19 @@ function _windowTailStart(msgCount, opts = {}) {
 
 async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent = () => {}, signal = null }) {
   const maxSteps = config.maxSteps ?? MAX_STEPS;
-  // Surcharges de consommation de contexte (cf. docs/DECISIONS.md) — undefined retombe sur la constante
-  const windowOpts = { keepPairs: config.windowKeepPairs, threshold: config.windowThreshold };
+  // Politique selon le moteur : le cloud garde le prompt complet, un modèle local
+  // reçoit un prompt/contexte/historique plus courts (ADR-033).
+  const modelPolicy = resolveModelPolicy({
+    engine:   config.model?.primary,
+    model:    config.model?.engines?.[config.model?.primary]?.model,
+    explicit: config.promptProfile,
+  });
+  // Surcharges de consommation de contexte (cf. docs/DECISIONS.md) — undefined retombe
+  // sur la politique du moteur (plus courte en local).
+  const windowOpts = {
+    keepPairs: config.windowKeepPairs ?? modelPolicy.historyKeepPairs,
+    threshold: config.windowThreshold,
+  };
   const guard    = makeGuard(projectRoot);
 
   // Les sous-agents ne créent pas de session propre — ils s'exécutent dans le contexte du parent.
@@ -176,10 +190,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   } else {
     session = { id: null };
   }
+  config._sessionId = session.id;
 
   // Catalogue complet — filtré selon le contexte (agent principal vs sous-agent)
   const allToolDefs = {
     plan:         'plan         — args: { "objective": "1 ligne ≤ 90 car.", "goals": ["3-4 max, ≤ 60 car."], "steps": ["3-6 max, ≤ 70 car., verbe à l\'infinitif"] }  — briefe l\'utilisateur sur ce que tu as compris et ce que tu vas faire (intent = « tu veux… / je vais… »). À utiliser librement selon la complexité de la tâche.',
+    goal:         'goal         — objectif persistant : { "action": "set", "objective": "...", "source": "citation de la demande", "criteria": [{ "text": "...", "verify": { "kind": "test|file|command", "command"?: "...", "path"?: "..." } }] } | { "action": "status", "criterion_id": "c1", "status": "met", "evidence": { "kind": "...", "command"?: "...", "path"?: "..." } } | { "action": "decide", "class": "D0|D1|D2|D3", "question": "...", "choice": "...", "rationale": "...", "approved"?: true } | { "action": "plan|close|block|get", ... }. Un finish avec critère non prouvé est refusé.',
     read_file:    'read_file    — args: { "path": "...", "start_line"?: N, "end_line"?: N }  — lit un fichier (ou une plage de lignes)',
     write_file:   'write_file   — args: { "path": "...", "content": "..." }  — écrit/crée un fichier',
     replace_code: 'replace_code — args: { "path": "...", "old_string": "...", "new_string": "..." }  — remplace une chaîne exacte',
@@ -276,6 +292,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   } else {
     // Agent principal : tous les outils activés
     toolNames = ['ask_user', 'note_user', 'plan', 'get_project_info', 'read_file', 'write_file', 'replace_code', 'batch_replace', 'restore_file', 'diff_file', 'delete_file', 'move_file', 'list_dir', 'find_symbol', 'find_dependents', 'find_dependencies', 'find_relevant_files', 'search_grep', 'run_tests', 'format_file', 'scratchpad', 'project_note', 'read_url', 'http_request', 'check_service'];
+    if ((config.autonomyLevel || 'assisted') !== 'off') toolNames.push('goal');
     if (config.enableWebSearch !== false) toolNames.push('web_search');
     if (config.enableLsp) toolNames.push('lsp_hover', 'lsp_definition', 'lsp_references');
     if (config.enableFixLoop) toolNames.push('fix_loop');
@@ -313,7 +330,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     ? toolNames
     : selectToolsForTask(toolNames, task, { ...config, forceFamilies: persona.forceFamilies });
 
-  const availableTools = activeToolNames.map(n => allToolDefs[n]).filter(Boolean);
+  let availableTools = activeToolNames.map(n => allToolDefs[n]).filter(Boolean);
 
   // Initialiser le registre MCP — connecteurs activés dans config
   const mcpRegistry = new McpRegistry();
@@ -322,6 +339,15 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Ajouter les outils MCP découverts à availableTools (visibles dans le prompt système)
   for (const desc of mcpRegistry.toolDescriptions) {
     availableTools.push(desc);
+  }
+
+  // Modèle local : descriptions d'outils compactes. Le prompt système complet
+  // (cloud) n'est jamais tronqué ; seul le local y gagne (ADR-033).
+  if (modelPolicy.compactTools && config.compactTools !== false) {
+    availableTools = availableTools.map((desc) => {
+      const text = String(desc);
+      return text.length > 220 ? `${text.slice(0, 217)}…` : text;
+    });
   }
 
   // Périmètre strict d'exécution : sous-agents (liste du profil) et mode plan.
@@ -343,8 +369,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const langRules = getLangRules(lang);
   onEvent({ type: 'lang_detected', lang });
 
-  // Lire AGENTS.md (guide du projet) — injecté une seule fois dans le prompt
-  const agentsContent = _readAgentsFile(projectRoot);
+  // Lire AGENTS.md (guide du projet) — injecté une seule fois dans le prompt.
+  // Un modèle local reçoit une version plus courte (policy.agentsMaxChars).
+  const agentsContent = _readAgentsFile(projectRoot, modelPolicy.agentsMaxChars);
   const agentsExists  = agentsContent.length > 0;
   if (agentsExists)  onEvent({ type: 'agents_loaded', chars: agentsContent.length });
   if (!agentsExists) onEvent({ type: 'agents_missing' });
@@ -368,19 +395,36 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     const ragStore = createStore(storeId);
     indexProject(projectRoot, ragStore);
     ragStore.flush(); // persistance unique après indexation complète
-    projectContext = await buildContext({ task, projectRoot, ragStore, maxChars: config.contextBudget ?? config.maxContextChars ?? MAX_CONTEXT_CHARS });
+    projectContext = await buildContext({
+      task,
+      projectRoot,
+      ragStore,
+      topK: modelPolicy.ragTopK,
+      maxChars: config.contextBudget ?? config.maxContextChars ?? MAX_CONTEXT_CHARS,
+    });
     onEvent({ type: 'context_ready', chars: projectContext.length });
   } catch {
     // RAG non bloquant — l'agent continue sans contexte enrichi
   }
 
-  // Profil de prompt selon le moteur (ADR-024) : un 3B reçoit un prompt allégé,
-  // un modèle cloud garde le prompt complet.
-  const promptProfile = resolvePromptProfile({
-    engine:   config.model?.primary,
-    model:    config.model?.engines?.[config.model?.primary]?.model,
-    explicit: config.promptProfile,
-  });
+  // Profil de prompt selon le moteur (ADR-023/ADR-033) : un modèle local reçoit un
+  // prompt allégé, un modèle cloud garde le prompt complet.
+  const promptProfile = modelPolicy.profile;
+
+  // Moteur d'objectifs (ADR-031) : un sous-agent n'a ni objectif ni autonomie propres.
+  const autonomyLevel = isSubAgent ? 'off' : (config.autonomyLevel || 'assisted');
+  let activeGoal = null;
+  if (autonomyLevel !== 'off') {
+    try {
+      activeGoal = loadActiveGoal(projectRoot);
+      // Objectif d'une session précédente : on l'archive (portée = une tâche).
+      // La reprise inter-sessions est une phase ultérieure, pas le MVP.
+      if (activeGoal && activeGoal.sessionId !== session.id) {
+        archiveActiveGoal(projectRoot, 'session précédente — objectif non clôturé');
+        activeGoal = null;
+      }
+    } catch { activeGoal = null; }
+  }
 
   const messages = [
     { role: 'system', content: buildSystemPrompt(availableTools, projectContext, {
@@ -398,6 +442,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         enableShell:    !!config.enableShell,
         feedbackSummary,
         profile:        promptProfile,
+        goal:           activeGoal ? goalSummary(activeGoal) : '',
+        autonomyLevel,
     }) },
     { role: 'user',   content: _buildTaskContent(task, config._images) },
   ];
@@ -446,6 +492,10 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const _compactState = () => {
     const lines = ['ÉTAT DE LA TÂCHE (reconstruit automatiquement — ne relis pas ce qui est déjà listé)'];
     if (_planObjective) lines.push(`Objectif      : ${_planObjective}`);
+    if (activeGoal) {
+      const met = activeGoal.criteria.filter(c => c.status === 'met').length;
+      lines.push(`Objectif suivi: ${activeGoal.objective} (${met}/${activeGoal.criteria.length} critères)`);
+    }
     if (_reads.size) lines.push(`Fichiers lus  : ${_shortList(_reads, 6)}`);
     if (_mods.size) lines.push(`Modifiés      : ${_shortList(_mods, 6)}`);
     if (_lastFailure) lines.push(`Dernier échec : ${_lastFailure.tool} → ${String(_lastFailure.error).slice(0, 80)} (étape ${_lastFailure.step})`);
@@ -457,6 +507,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Quand des fichiers ont été modifiés, on exige un `checks` qui les couvre ou un
   // test passé — avec une seule relance, pour ne pas changer un oubli en boucle.
   let _finishNudgeSent = false;
+  let _goalNudgeSent = false;
+  let _goalBudgetWarned = false;
 
   const _modifiedPaths = () => {
     const modTools = new Set([TOOLS.WRITE_FILE, TOOLS.REPLACE_CODE, TOOLS.DELETE_FILE, TOOLS.MOVE_FILE]);
@@ -499,6 +551,25 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       };
     }
     return { ok: true };
+  };
+
+  // Gate d'objectif : mêmes principes que la preuve de finish, mais adossé aux
+  // critères persistés. Le modèle ne peut pas clôturer sur une déclaration.
+  const _checkGoalGate = (currentStep) => {
+    if (!activeGoal) return { ok: true };
+    let fresh = activeGoal;
+    try { fresh = loadActiveGoal(projectRoot) || activeGoal; } catch { /* store illisible */ }
+    activeGoal = fresh;
+    // Un objectif bloqué ne retient plus la terminaison : l'agent rend compte
+    // d'un échec assumé. Un objectif clos garde les contrôles de budget et de
+    // dépendance (une modification après coup reste vérifiée).
+    if (fresh.status === 'blocked' || fresh.status === 'abandoned') return { ok: true };
+    return evaluateGoalCompletion(fresh, {
+      trace,
+      steps: currentStep,
+      filesChanged: _modifiedPaths().length,
+      allowIncomplete: fresh.status === 'done',
+    });
   };
   // Compteur de tokens cumulés sur la session
   let _sessionIn  = 0;
@@ -545,6 +616,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     return llmGenerate(windowed, {
       temperature: config.temperature ?? DEFAULT_TEMPERATURE,
       topP:        config.topP ?? 1,
+      maxTokens:   modelPolicy.maxTokens,
       onToken,
       onUsage,
       signal,
@@ -558,7 +630,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       disposeBrowser().catch(() => {});
       disposeLsp().catch(() => {});
       const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
-      if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
+      if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
       onEvent({ type: 'cancelled' });
       return cancelled;
     }
@@ -579,7 +651,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           disposeBrowser().catch(() => {});
           disposeLsp().catch(() => {});
           const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
-          if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
+          if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
           onEvent({ type: 'cancelled' });
           return cancelled;
         }
@@ -623,6 +695,33 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     // ── Finish ───────────────────────────────────────────────────────────────
     if (parsed.tool === TOOLS.FINISH) {
       const summary = parsed.args.summary || 'Tâche terminée.';
+
+      const goalCheck = _checkGoalGate(step);
+      if (!goalCheck.ok && !_goalNudgeSent) {
+        _goalNudgeSent = true;
+        onEvent({ type: 'goal_finish_rejected', reason: goalCheck.reason });
+        messages.push({
+          role: 'user',
+          content: `OBJECTIF NON ATTEINT : ${goalCheck.reason}.\nProuve chaque critère avec goal status (evidence réelle : read_file du fichier modifié, run_tests vert), puis goal close. Si un critère est impossible, goal block avec la raison.`,
+        });
+        continue;
+      }
+      if (!goalCheck.ok) {
+        // Deuxième tentative : on ne ment pas sur le résultat — l'objectif est bloqué
+        // et le finish est accepté avec un statut explicite.
+        try {
+          const current = loadActiveGoal(projectRoot);
+          if (current) {
+            current.status = 'blocked';
+            current.blockReason = goalCheck.reason;
+            saveGoal(projectRoot, current);
+            activeGoal = current;
+            onEvent({ type: 'goal_blocked', goal: current });
+          }
+        } catch { /* objectif non persistable — finish quand même */ }
+        onEvent({ type: 'goal_incomplete', reason: goalCheck.reason });
+      }
+
       const proof = _checkFinishProof(parsed.args);
       if (!proof.ok && !_finishNudgeSent) {
         _finishNudgeSent = true;
@@ -633,12 +732,31 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         });
         continue;
       }
+
+      // Critères tous prouvés mais l'agent a oublié goal close : on clôture pour
+      // ne pas laisser un objectif actif contaminer la tâche suivante.
+      if (activeGoal && activeGoal.status === 'active') {
+        try {
+          activeGoal.status = 'done';
+          activeGoal.closedAt = new Date().toISOString();
+          activeGoal.outcome = summary.slice(0, 300);
+          saveGoal(projectRoot, activeGoal);
+          onEvent({ type: 'goal_done', goal: activeGoal });
+        } catch { /* non bloquant */ }
+      }
+
       onEvent({ type: 'finish', summary });
       mcpRegistry.dispose();
       disposeBrowser().catch(() => {});
       disposeLsp().catch(() => {});
-      const result = { ok: true, summary, trace, sessionId: session.id };
-      if (!isSubAgent) updateSession(sessionPath, { steps: trace, result, scratchpad: scratchpad.toJSON() });
+      const result = {
+        ok: true,
+        summary,
+        trace,
+        sessionId: session.id,
+        ...(activeGoal ? { goal: { id: activeGoal.id, status: activeGoal.status } } : {}),
+      };
+      if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result, scratchpad: scratchpad.toJSON() });
       return result;
     }
 
@@ -714,6 +832,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       if (parsed.tool === TOOLS.PLAN && parsed.args?.objective) {
         _planObjective = String(parsed.args.objective).slice(0, 120);
       }
+      if (parsed.tool === TOOLS.GOAL && result.goal) {
+        activeGoal = result.goal;
+      }
     } else if (!parsed.error) {
       _lastFailure = { tool: parsed.tool, error: String(result.error || 'ERREUR'), step };
     }
@@ -758,6 +879,14 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       ? `Résultat : ${typeof resultForContext === 'string' ? resultForContext : JSON.stringify(resultForContext)}`
       : `Erreur outil : ${result.error}`;
 
+    // L'objectif vient de changer : rappeler le bloc pour que le petit modèle
+    // n'oublie pas les critères restants (create/close/block/plan uniquement).
+    const goalAction = String(parsed.args?.action || '');
+    if (parsed.tool === TOOLS.GOAL && result.ok && result.block
+        && (result.notify || ['close', 'block', 'plan'].includes(goalAction))) {
+      resultMsg += `\n\nOBJECTIF :\n${result.block}`;
+    }
+
     // Vérification obligatoire après écriture : force le LLM à relire avant de continuer.
     // Les erreurs de code les plus fréquentes viennent d'une écriture non vérifiée.
     if (result.ok && parsed.args?.path &&
@@ -769,7 +898,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       const CODE_EXTS = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.rb', '.java', '.cs', '.cpp', '.c', '.php'];
       const ext = path.extname(parsed.args.path).toLowerCase();
       if (CODE_EXTS.includes(ext) && activeToolNames.includes('run_tests') && _projectHasTests(projectRoot)) {
-        resultMsg += `\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.`;
+        resultMsg += '\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.';
       }
 
       // Avertissement secrets : le LLM a peut-être écrit un secret dans le fichier
@@ -783,25 +912,25 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (tddMode && parsed.tool === TOOLS.RUN_TESTS) {
       if (tddPhase === TDD_PHASES.RED) {
         if (result.ok && result.exitCode === 0) {
-          resultMsg += `\n\n🔴 TDD RED : tous les tests passent déjà — tes assertions sont trop faibles. Renforce-les ou ajoute des cas qui échouent.`;
+          resultMsg += '\n\n🔴 TDD RED : tous les tests passent déjà — tes assertions sont trop faibles. Renforce-les ou ajoute des cas qui échouent.';
         } else {
-          resultMsg += `\n\n✅ Phase RED validée — les tests échouent comme prévu. Passe à GREEN : écris le code minimal pour les faire passer (ne modifie pas le test).`;
+          resultMsg += '\n\n✅ Phase RED validée — les tests échouent comme prévu. Passe à GREEN : écris le code minimal pour les faire passer (ne modifie pas le test).';
           tddPhase = TDD_PHASES.GREEN;
           onEvent({ type: 'tdd_phase', phase: TDD_PHASES.GREEN });
         }
       } else if (tddPhase === TDD_PHASES.GREEN) {
         if (result.ok && result.exitCode === 0) {
-          resultMsg += `\n\n🟢 Phase GREEN validée — tous les tests passent. Tu peux appeler finish ou passer à REFACTOR pour améliorer le code sans changer le comportement.`;
+          resultMsg += '\n\n🟢 Phase GREEN validée — tous les tests passent. Tu peux appeler finish ou passer à REFACTOR pour améliorer le code sans changer le comportement.';
           tddPhase = TDD_PHASES.REFACTOR;
           onEvent({ type: 'tdd_phase', phase: TDD_PHASES.REFACTOR });
         } else {
-          resultMsg += `\n\n🔴 Tests encore rouges. Modifie UNIQUEMENT le fichier SOURCE — ne touche pas au fichier de test.`;
+          resultMsg += '\n\n🔴 Tests encore rouges. Modifie UNIQUEMENT le fichier SOURCE — ne touche pas au fichier de test.';
         }
       } else if (tddPhase === TDD_PHASES.REFACTOR) {
         if (result.ok && result.exitCode === 0) {
-          resultMsg += `\n\n✅ Tests verts après refactoring. Continue à améliorer ou appelle finish.`;
+          resultMsg += '\n\n✅ Tests verts après refactoring. Continue à améliorer ou appelle finish.';
         } else {
-          resultMsg += `\n\n⚠️ TDD REFACTOR : un test vient de casser. Appelle restore_file immédiatement — ne modifie pas le test pour le faire passer.`;
+          resultMsg += '\n\n⚠️ TDD REFACTOR : un test vient de casser. Appelle restore_file immédiatement — ne modifie pas le test pour le faire passer.';
         }
       }
     }
@@ -821,14 +950,30 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       resultMsg += `\n\n[Étape ${step}/${maxSteps} — ${remaining} restantes]${_stateSuffix()}`;
     }
 
+    if (activeGoal && !_goalBudgetWarned && shouldWarnBudget(activeGoal, step)) {
+      _goalBudgetWarned = true;
+      onEvent({ type: 'goal_budget_warning', goal: activeGoal, steps: step });
+      resultMsg += `\n\nBUDGET : ${step}/${activeGoal.budget.maxSteps} étapes consommées. Termine les critères restants ou appelle goal block avec la raison.`;
+    }
+
     messages.push({ role: 'user', content: resultMsg });
   }
 
   mcpRegistry.dispose();
   disposeBrowser().catch(() => {});
   disposeLsp().catch(() => {});
+
+  if (activeGoal) {
+    try {
+      activeGoal.status = 'blocked';
+      activeGoal.blockReason = 'budget d\'étapes épuisé';
+      saveGoal(projectRoot, activeGoal);
+      onEvent({ type: 'goal_blocked', goal: activeGoal });
+    } catch { /* objectif non persistable */ }
+  }
+
   const failResult = { ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
-  if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
+  if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
   return failResult;
 }
 

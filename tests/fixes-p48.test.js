@@ -12,7 +12,7 @@ const path = require('path');
 
 const src = fs.readFileSync(
   path.join(__dirname, '../src/renderer-visible/app.js'),
-  'utf8'
+  'utf8',
 );
 
 // ── 1. Source : nouveaux éléments d'interface ────────────────────────────────
@@ -32,28 +32,28 @@ describe('app.js — activity progress indicator', () => {
   it('_activityRender produit un activity-step-badge', () => {
     assert.ok(
       src.includes('activity-step-badge'),
-      'Le badge d\'étape doit être injecté par _activityRender'
+      'Le badge d\'étape doit être injecté par _activityRender',
     );
   });
 
   it('_activityRender produit un activity-elapsed', () => {
     assert.ok(
       src.includes('activity-elapsed'),
-      'Le temps écoulé doit être injecté par _activityRender'
+      'Le temps écoulé doit être injecté par _activityRender',
     );
   });
 
   it('_activityRender produit un activity-retry quand parse_error > 0', () => {
     assert.ok(
       src.includes('activity-retry'),
-      'Le badge retry doit être conditionnel aux parse_error'
+      'Le badge retry doit être conditionnel aux parse_error',
     );
   });
 
   it('_activityElapsed retourne le format Xs ou XmYs', () => {
     assert.ok(
       src.includes('_activityElapsed'),
-      '_activityElapsed doit être défini'
+      '_activityElapsed doit être défini',
     );
     // Vérifier les deux formats dans le code source
     assert.ok(src.includes('`${secs}s`'), 'Format secondes seules présent');
@@ -82,11 +82,11 @@ describe('app.js — parse_error branché sur _activityParseRetry', () => {
     const handler = src.slice(idx, idx + 200);
     assert.ok(
       handler.includes('_activityParseRetry'),
-      '_activityParseRetry doit être appelé dans le handler parse_error'
+      '_activityParseRetry doit être appelé dans le handler parse_error',
     );
     assert.ok(
       !handler.includes('// retry silencieux'),
-      'L\'ancien commentaire "silencieux" ne doit plus être présent'
+      'L\'ancien commentaire "silencieux" ne doit plus être présent',
     );
   });
 
@@ -103,7 +103,7 @@ describe('app.js — parse_error branché sur _activityParseRetry', () => {
 describe('styles.css — nouveaux sélecteurs activity', () => {
   const css = fs.readFileSync(
     path.join(__dirname, '../src/renderer-visible/styles.css'),
-    'utf8'
+    'utf8',
   );
 
   it('.activity-step-badge défini', () => {

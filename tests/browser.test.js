@@ -643,7 +643,7 @@ describe('agent.js — outils browser dans toolNames', () => {
   it('les descriptions browser_* sont dans allToolDefs', () => {
     // On vérifie que agent.js exporte les bonnes descriptions via runAgent stub
     const src = require('fs').readFileSync(
-      require.resolve('../src/harness/agent.js'), 'utf8'
+      require.resolve('../src/harness/agent.js'), 'utf8',
     );
     const expected = [
       'browser_open', 'browser_navigate', 'browser_screenshot',
@@ -660,14 +660,14 @@ describe('agent.js — outils browser dans toolNames', () => {
 
   it('disposeBrowser est importé dans agent.js', () => {
     const src = require('fs').readFileSync(
-      require.resolve('../src/harness/agent.js'), 'utf8'
+      require.resolve('../src/harness/agent.js'), 'utf8',
     );
     assert.ok(src.includes('disposeBrowser'));
   });
 
   it('disposeBrowser appelé aux 3 points de sortie', () => {
     const src = require('fs').readFileSync(
-      require.resolve('../src/harness/agent.js'), 'utf8'
+      require.resolve('../src/harness/agent.js'), 'utf8',
     );
     const count = (src.match(/disposeBrowser\(\)/g) || []).length;
     assert.ok(count >= 3, `disposeBrowser() trouvé ${count} fois, attendu ≥ 3`);

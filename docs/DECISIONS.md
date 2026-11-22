@@ -272,3 +272,58 @@
 **Décision** : `@huggingface/transformers` (Apache-2.0) + modèle `onnx-community/whisper-base` (MIT), exécutés en WASM dans une fenêtre cachée dédiée (`src/renderer-voice/`), créée **à la demande** (`getVoiceWindow()`) — un utilisateur qui n'active pas la fonction ne charge rien. Parcours : clic micro (`MediaRecorder`) → clic d'arrêt → audio envoyé par IPC `voice:transcribe` → Whisper transcrit → `condenseDictation()` (harness, `llmGenerate` injecté) reformule en gardant l'idée principale → texte inséré dans le champ, jamais envoyé automatiquement. Activation par `config.voiceEnabled` (défaut `false`, interrupteur dans Paramètres → Agent). Dictées < 40 caractères : pas d'appel LLM. LLM en erreur ou réponse vide : repli sur la transcription brute.
 **Conséquences** : le modèle (~75 Mo) est téléchargé une fois au premier usage (progression relayée à l'UI) puis servi par le cache. Mesuré en Electron : phrase de 17 s transcrite à l'identique en 17 s (modèle en cache). `onnxruntime-node` et `sharp` (~290 Mo, natifs) sont exclus du paquet (`electron-builder.yml`) car inutiles en WASM. On importe `dist/transformers.min.js` (autonome) : le build `transformers.web.js` contient un import nu `onnxruntime-web/webgpu` invalide en `file://`. WASM mono-thread (`file://` n'est pas cross-origin isolated). Langue fixée d'après la langue de l'UI (Whisper détecte mal sur phrase courte ; une langue forcée ≠ langue parlée fait boucler le modèle).
 **Alternatives rejetées** : `webkitSpeechRecognition` (ne fonctionne pas dans Electron sans clés Google, audio envoyé à Google) ; whisper.cpp binaire/natif (empaquetage Windows plus lourd) ; Vosk (précision française insuffisante sur le vocabulaire technique) ; API OpenAI/Gemini (payant, non libre) ; chargement via CDN comme WebLLM (exige une connexion au premier lancement).
+
+---
+
+## ADR-029 : Dossier de données unique + backups indexés par fichier
+
+**Date** : 2026-11-22
+**Contexte** : `user-data.js` isolait le `userData` Electron (caches Chromium) mais `config.js`, `sessions.js`, `rag/store.js`, `logger.js`, `backup.js` et `restore.js` codaient en dur `%APPDATA%\code-harness`. Deux copies du projet partageaient donc config, clés API, sessions, RAG et backups — contrairement à la promesse de l'isolation. Et les backups étaient stockés à plat par nom de fichier : `restore_file` pouvait restaurer le `src/app.js` d'un autre projet, et la rétention de 50 snapshots mélangeait tous les projets.
+**Décision** : `src/shared/data-dir.js` (NOUVEAU) — `getDataDir()` résout `HARNESS_DATA_DIR` s'il est posé, sinon `%APPDATA%\code-harness` (CLI, eval, tests). `main.js` fixe `HARNESS_DATA_DIR = app.getPath('userData')` juste après `app.setPath('userData', …)` ; une copie reçoit donc son propre dossier pour config, sessions, RAG, logs et backups. `safety/backup.js` range chaque fichier dans `backups/<sha1(chemin absolu)>/<timestamp>/<basename>` et applique la rétention par fichier ; `restore_file` et `diff_file` ne listent que la clé du fichier ciblé. Migration unique : une copie qui obtient son propre dossier reprend `config.json` du dossier partagé (clés DPAPI toujours lisibles) ; sessions/backups/RAG ne sont pas copiés.
+**Conséquences** : deux copies ne se marchent plus dessus ; un `restore_file` ne peut plus traverser les projets ; la rétention est par fichier (50 versions d'un même fichier, au lieu de 50 toutes catégories). Les backups antérieurs (ancienne disposition) ne sont plus listés — documenté dans `PASSATION.md`. 6 tests dans `tests/data-dir.test.js`.
+**Alternatives rejetées** : passer `projectRoot` à `snapshot()` (signature publique modifiée, 6 appelants, et `delete_file`/`move_file` n'ont pas le root sous la main) ; clé de projet par hash du `projectRoot` (ne distingue pas deux fichiers homonymes d'un même projet) ; garder la disposition globale avec un filtre de date (aucune garantie d'isolation).
+
+---
+
+## ADR-030 : CSP sur chaque renderer + `run_shell` asynchrone
+
+**Date** : 2026-11-22
+**Contexte** : aucune `Content-Security-Policy` n'était déclarée ; tout HTML injecté (sortie LLM, nom de fichier, contenu de page) pouvait charger une ressource distante. Et `run_shell` utilisait `execSync` : une commande de 60 s gelait le processus principal, donc l'UI et tous les IPC.
+**Décision** : chaque HTML déclare une CSP en `<meta>`. Fenêtres visibles (`index.html`, `settings.html`, `design.html`) : `default-src 'self'`, `object-src 'none'`, ni `unsafe-eval` ni script distant, `unsafe-inline` conservé pour les styles et le bouton Copier généré. `llm.html` autorise uniquement `https://esm.run` / `cdn.jsdelivr.net` (WebLLM) et `wasm-unsafe-eval` ; `voice.html` autorise `wasm-unsafe-eval`, `worker-src blob:` et `connect-src https:` (téléchargement du modèle Whisper). `shell.js` passe de `execSync` à `exec` promisifié (`maxBuffer` 10 Mo, `windowsHide`, timeout 60 s inchangé) ; la blacklist reste un garde-fou secondaire, pas un sandbox.
+**Conséquences** : une page qui injecterait `<script src="https://…">` est bloquée ; le bouton Copier et les styles inline continuent de fonctionner. `run_shell` ne bloque plus la boucle d'événements ; la sortie est plafonnée à 12 000 caractères. Tests : `tests/csp.test.js` (3 tests) et `tests/tools-advanced.test.js` (run_shell, inchangés).
+**Alternatives rejetées** : CSP posée par `session.webRequest.onHeadersReceived` (ne couvre pas `file://`, et impossible à vérifier sans lancer l'app) ; `sandbox: true` (les preloads utilisent `require()`, changement structurant hors périmètre) ; approbation utilisateur par commande shell (nouveau canal IPC + UI, à traiter séparément).
+
+---
+
+## ADR-031 : Moteur d'objectifs persistant et autonomie supervisée
+
+**Date** : 2026-11-22 (Phase 115)
+**Contexte** : l'agent savait exécuter une tâche et briefer (`plan`), mais pas porter un objectif : le plan est éphémère, `finish` vérifie des fichiers/test sans les comparer à la demande, et aucune décision n'est journalisée. Sur une fonctionnalité complète, impossible de répondre à « est-ce atteint ? », « pourquoi ce choix ? », « que reste-t-il ? ». L'utilisateur demande explicitement des objectifs et une autonomie de mise en œuvre.
+**Décision** : `src/harness/goals/` (NOUVEAU) — `model.js` (schéma, critères vérifiables, budget), `store.js` (un JSON par objectif dans `<projet>/.harness/goals/`, écriture atomique, path-guard), `policy.js` (classes D0–D3, matrice d'autonomie, gate de complétion). Outil unique `goal` (`set/status/decide/plan/close/block/get`) dans CORE. `agent.js` charge l'objectif actif de la session, injecte un bloc compact, refuse un `finish` dont les critères ne sont pas prouvés (preuve recoupée avec la trace : `read_file` réel, `run_tests` vert), et bloque l'objectif au deuxième finish ou à `MAX_STEPS`. Niveaux `autonomyLevel` : `off`, `assisted` (défaut : D0/D1 seul, D2/D3 demandés), `auto` (D2 seul avec ADR, D3 toujours demandé). Un objectif d'une session précédente est archivé au démarrage (portée = une tâche pour le MVP).
+**Conséquences** : `finish` ne peut plus clôturer un objectif incomplet sans le déclarer `blocked` ; chaque décision structurante est journalisée ; les dépendances (package.json) exigent une décision D2. Coût prompt maîtrisé : section minimale pour les petits modèles, seuil `prompt-profile` de l'eval toujours respecté. Tests : `tests/goal.test.js` (13) + tâche d'eval `goal-feature` (7 vérifications). 1387/1387 tests verts.
+**Alternatives rejetées** : enrichir `plan` seulement (pas de persistance ni de preuve) ; worker autonome multi-sessions immédiat (reprise après crash et exécution planifiée : phase ultérieure) ; critères déclaratifs (un « done » non prouvé est précisément le problème à corriger).
+
+---
+
+## ADR-032 : Médias (images / vidéos) rendus dans le chat
+
+**Date** : 2026-11-22 (Phase 116)
+**Contexte** : les outils `generate_image` / `generate_video` écrivent un fichier et renvoient un texte du type « Image générée → image_123.png » ; le chat n'affichait que ce texte. Les images/vidéos produites par du code (chart.png, clip.mp4) n'étaient pas non plus visibles. Le renderer n'a pas le droit de lire le disque (`CLAUDE.md`) et le markdown n'avait ni images ni médias.
+**Décision** : `src/renderer-visible/media.js` (NOUVEAU) — résolution pure des chemins : types whitelistés (`png/jpg/gif/webp/avif/bmp/svg/ico/mp4/webm/mov/m4v/ogv`), refus des chemins absolus, lecteurs Windows, protocoles et `..`, construction d'une URL `file://` **sous le projectRoot**. `app.js` rend `![alt](chemin)` et les chemins nus en `.md-media` (`<img>` ou `<video controls>`), ajoute une carte après un outil média (`generate_image`, `generate_video`, `browser_screenshot`, `merge_videos`) et affiche le média dans la visionneuse. CSP existante (`img-src 'self' file:`, `media-src 'self' file:`) : aucune directive ajoutée. Pas de lecture FS en JS, SVG en `<img>` (scripts non exécutés).
+**Conséquences** : une image/vidéo produite dans le projet est visible immédiatement, y compris hors outils IA (code). Un chemin hors projet est ignoré (pas de fuite). Les blocs de code restent intacts (le media est produit hors `<pre>`). Tests : `tests/media.test.js` (8), 1396/1396.
+**Alternatives rejetées** : IPC `media:read` renvoyant une data URL (duplique le fichier en mémoire, coût pour les vidéos) ; laisser le renderer lire le FS avec `fs` (viole la frontière) ; autoriser les URL `http(s)` (exfiltration et dépendance réseau) ; rendu HTML/SVG inline (XSS) — l'aperçu sandboxé des blocs de code reste une phase 2 distincte.
+
+---
+
+## ADR-033 : Performance locale — prompt adapté au moteur, cache KV CPU
+
+**Date** : 2026-11-22 (Phase 117)
+**Contexte** : sur un PC moyen, le préfill du prompt domine le temps de réponse et le cache KV était reconstruit à chaque étape. Le prompt système pèse ~18 300 caractères (~4 600 tokens) avec le catalogue dynamique. Par ailleurs, réduire le prompt pour tous les moteurs dégraderait les modèles cloud, qui n'ont pas ce problème.
+**Décision** : `src/harness/prompts/model-policy.js` (NOUVEAU) — `resolveModelPolicy({engine, model, explicit})` choisit :
+- **cloud** : prompt `standard`, RAG topK 5, AGENTS 4 000 car., 10 paires d'historique, `maxTokens` 4 096 — **inchangé** ;
+- **local 7B** : `minimal`, topK 4, AGENTS 3 000, 8 paires, 2 048 ;
+- **local 1.5B/3B** : `minimal`, topK 3, AGENTS 2 000, 6 paires, 1 024.
+
+`agent.js` applique la politique (profil, `topK` du RAG, taille AGENTS, fenêtre, `maxTokens`), tronque les descriptions d'outils à 220 caractères **uniquement en local** (`config.compactTools:false` pour revenir en arrière). `CpuEngine` garde une session `LlamaChatSession` persistante : le cache KV n'est réutilisé que si le prompt système est identique et que l'historique connu est un préfixe exact ; sinon la session est recréée. Réglages CPU : contexte 4 096, KV `Q8_0`, flash attention, batch 256, `gpuLayers: 'auto'` (Vulkan/CUDA), threads `cpus−1` plafonné à 8 (`config.cpuThreads`).
+**Conséquences** : prompt local 3B **18 289 → 12 859 car. (−30 %, ~4 573 → 3 215 tokens)**, local 7B −29 % ; cloud inchangé. Benchmark reproductible `npm run bench:prompt`. Tests : `tests/model-policy.test.js` (6) + 3 tests de session CPU ; 1 405/1 405.
+**Alternatives rejetées** : réduire le prompt globalement (dégrade le cloud) ; garder une session CPU inconditionnelle (historique divergent → réponses fausses) ; KV cache q4 (gain mémoire mais perte de qualité mesurable sur petits modèles) ; streaming WebLLM et chargement paresseux du moteur local — reportés en phase 2 (nécessitent un canal IPC de tokens et une politique de warm-up, non testables sans GPU ici).

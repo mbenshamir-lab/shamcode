@@ -16,4 +16,7 @@ jobs:
           cache: npm
       # --ignore-scripts : évite le téléchargement/compilation de node-llama-cpp ; les tests n'en ont pas besoin
       - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm test
+      # Eval déterministe (replay, aucun réseau) : garde-fou prompt/contexte/garde-fous
+      - run: node tests/eval/run.js --strict

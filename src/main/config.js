@@ -1,6 +1,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { MAX_CONTEXT_CHARS, DEFAULT_TEMPERATURE } = require('../shared/constants');
+const { getDataDir } = require('../shared/data-dir');
 
 // safe-keys n'est disponible qu'après que l'app Electron soit prête.
 // On l'importe de façon paresseuse pour ne pas crasher les tests Node.
@@ -12,7 +13,11 @@ function getSafeKeys() {
   return _safeKeys;
 }
 
-const CONFIG_PATH = path.join(process.env.APPDATA || '', 'code-harness', 'config.json');
+// Résolu à chaque lecture/écriture : le main fixe HARNESS_DATA_DIR après app.ready,
+// et les tests pointent APPDATA vers un dossier temporaire.
+function getConfigPath() {
+  return path.join(getDataDir(), 'config.json');
+}
 
 const DEFAULTS = {
   version: 1,
@@ -28,6 +33,7 @@ const DEFAULTS = {
   },
   projectRoot: null,
   approvalMode: false,
+  autonomyLevel: 'assisted',   // off | assisted | auto — moteur d'objectifs (ADR-031)
   maxSteps: 25,
   maxContextChars: MAX_CONTEXT_CHARS,
   temperature: DEFAULT_TEMPERATURE,
@@ -35,6 +41,13 @@ const DEFAULTS = {
   voiceEnabled: false,
   voiceModel: 'base',   // 'base' (~75 Mo) | 'small' (~250 Mo, plus précis)
   enableGit: true,
+  // Moteur CPU/GGUF (ADR-033) : contexte court, KV quantifié, flash attention.
+  cpuContextSize: 4096,
+  cpuThreads: null,          // null = cœurs logiques − 1 (plafonné à 8)
+  cpuBatchSize: 256,
+  cpuFlashAttention: true,
+  cpuGpuLayers: 'auto',      // offload Vulkan/CUDA si disponible
+  cpuKvType: 'Q8_0',
   backupBeforeWrite: true,
   maxBackups: 50,
   sessionsRetention: 100,
@@ -64,7 +77,7 @@ const DEFAULTS = {
 async function loadConfig() {
   let loaded = {};
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = fs.readFileSync(getConfigPath(), 'utf8');
     loaded = JSON.parse(raw);
   } catch { /* fichier absent → défauts */ }
 
@@ -78,13 +91,14 @@ async function loadConfig() {
 }
 
 async function saveConfig(config) {
-  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+  const configPath = getConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
 
   // Chiffrer les clés API avant écriture sur disque
   const sk = getSafeKeys();
   const toWrite = sk ? sk.prepareConfigForSave(config) : config;
 
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(toWrite, null, 2), 'utf8');
+  fs.writeFileSync(configPath, JSON.stringify(toWrite, null, 2), 'utf8');
 }
 
 module.exports = { loadConfig, saveConfig, DEFAULTS };

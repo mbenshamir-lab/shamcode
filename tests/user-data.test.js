@@ -24,7 +24,7 @@ test('userData — l\'original revendique le dossier historique', (t) => {
   assert.strictEqual(dir, path.join(appData, APP_DIR_NAME));
   assert.strictEqual(
     fs.readFileSync(path.join(dir, MARKER_NAME), 'utf8').trim(),
-    projectRoot
+    projectRoot,
   );
 });
 

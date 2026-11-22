@@ -55,6 +55,42 @@ const TASKS = [
     ],
   },
 
+  // 1 bis ── Objectif persistant : feature créée, critère prouvé, objectif clos ──
+  {
+    id: 'goal-feature',
+    category: 'goal',
+    fixture: 'feature',
+    task: 'Crée src/export.js qui exporte une fonction d\'export CSV. Le fichier doit exister et être relu après création.',
+    script: [
+      { tool: 'goal', args: {
+        action: 'set',
+        objective: 'Créer src/export.js (export CSV)',
+        source: '« crée src/export.js qui exporte une fonction d\'export CSV »',
+        criteria: [{ text: 'src/export.js créé et relu', verify: { kind: 'file', path: 'src/export.js' } }],
+      } },
+      { tool: 'write_file', args: { path: 'src/export.js', content: 'module.exports = function toCsv(rows) { return rows.map(r => r.join(",")).join("\\n"); };\n' } },
+      { tool: 'read_file', args: { path: 'src/export.js' } },
+      { tool: 'goal', args: {
+        action: 'status', criterion_id: 'c1', status: 'met',
+        evidence: { kind: 'file', path: 'src/export.js' },
+      } },
+      { tool: 'goal', args: { action: 'close', summary: 'export CSV créé' } },
+      { tool: 'finish', args: {
+        summary: 'src/export.js créé avec toCsv().',
+        checks: [{ kind: 'file', path: 'src/export.js' }],
+      } },
+    ],
+    checks: (c) => [
+      ['tâche terminée', c.result.ok === true, c.result.error],
+      ['fichier créé', /toCsv/.test(c.read('src/export.js'))],
+      ['objectif créé', c.events.some(e => e.type === 'goal_created')],
+      ['objectif clos', c.events.some(e => e.type === 'goal_done')],
+      ['statut final done', c.result.goal?.status === 'done', JSON.stringify(c.result.goal)],
+      ['aucun finish incomplet', !c.events.some(e => e.type === 'goal_incomplete')],
+      ['budget respecté (≤ 8 étapes)', c.metrics.steps <= 8, `${c.metrics.steps} étapes`],
+    ],
+  },
+
   // 2 ── Récupération après JSON invalide ────────────────────────────────────
   {
     id: 'recover-json',
@@ -279,12 +315,15 @@ const TASKS = [
   },
 
   // 11 ── Budget de contexte : troncature au lieu du rejet ──────────────────
+  // Budget volontairement bas (400) : le RAG du fixture (~450 car. avec ses en-têtes)
+  // dépasse sa part, donc la troncature est réellement exercée. À 4 000, le contexte
+  // tenait sans coupe et le marqueur n'était jamais produit — l'assertion ne testait rien.
   {
     id: 'context-budget',
     category: 'context',
     fixture: 'large',
     task: 'Résume ce que contient src/large.js, sans le modifier.',
-    config: { contextBudget: 4000 },
+    config: { contextBudget: 400 },
     script: [
       { tool: 'finish', args: { summary: 'Fichier de fonctions de test, sans logique métier.' } },
     ],
@@ -293,7 +332,7 @@ const TASKS = [
       ['arborescence conservée', c.system.includes('## Arborescence')],
       ['extraits RAG conservés', c.system.includes('## Extraits pertinents')],
       ['troncature signalée au modèle', c.system.includes('tronqué')],
-      ['budget respecté (≤ 4 200 car. de contexte)', c.metrics.contextChars > 0 && c.metrics.contextChars <= 4200, `${c.metrics.contextChars} car.`],
+      ['budget respecté (≤ 420 car. de contexte)', c.metrics.contextChars > 0 && c.metrics.contextChars <= 420, `${c.metrics.contextChars} car.`],
     ],
   },
 

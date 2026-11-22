@@ -1,18 +1,30 @@
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const crypto = require('crypto');
+const { getDataDir } = require('../../shared/data-dir');
 
 function getBackupDir() {
-  const base = process.env.APPDATA || path.join(os.homedir(), '.config');
-  return path.join(base, 'code-harness', 'backups');
+  return path.join(getDataDir(), 'backups');
 }
 
-const BACKUP_DIR = getBackupDir();
+/**
+ * Clé de stockage d'un fichier : hash de son chemin absolu.
+ * Deux projets qui ont tous les deux un `src/app.js` ne partagent donc plus le même
+ * dossier de backups — restore_file ne peut plus restaurer le fichier d'un autre projet.
+ * @param {string} absPath
+ * @returns {string} 16 caractères hexadécimaux
+ */
+function fileKey(absPath) {
+  const normalized = path.resolve(absPath).replace(/\\/g, '/');
+  const keyed = process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  return crypto.createHash('sha1').update(keyed).digest('hex').slice(0, 16);
+}
 
 /**
  * Copie un fichier dans le dossier de backup avant modification.
  * Ne fait rien si le fichier n'existe pas encore.
- * Applique une rétention : garde au plus maxBackups snapshots (les plus récents).
+ * Applique une rétention : garde au plus maxBackups snapshots (les plus récents)
+ * pour ce fichier précis.
  *
  * @param {string} absPath   - Chemin absolu du fichier à sauvegarder
  * @param {number} [maxBackups=50]
@@ -22,7 +34,8 @@ function snapshot(absPath, maxBackups = 50) {
   if (!fs.existsSync(absPath)) return { ok: true, skipped: true };
 
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const dest = path.join(BACKUP_DIR, ts, path.basename(absPath));
+  const dir = path.join(getBackupDir(), fileKey(absPath));
+  const dest = path.join(dir, ts, path.basename(absPath));
 
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -33,15 +46,15 @@ function snapshot(absPath, maxBackups = 50) {
 
   // Rétention : supprimer les plus anciens si > maxBackups
   try {
-    const entries = fs.readdirSync(BACKUP_DIR, { withFileTypes: true })
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
       .filter(e => e.isDirectory())
       .map(e => e.name)
       .sort(); // ISO timestamp tri lexicographique = tri chronologique
 
     if (entries.length > maxBackups) {
       const toDelete = entries.slice(0, entries.length - maxBackups);
-      for (const dir of toDelete) {
-        fs.rmSync(path.join(BACKUP_DIR, dir), { recursive: true, force: true });
+      for (const d of toDelete) {
+        fs.rmSync(path.join(dir, d), { recursive: true, force: true });
       }
     }
   } catch (e) {
@@ -54,4 +67,4 @@ function snapshot(absPath, maxBackups = 50) {
   return { ok: true, dest };
 }
 
-module.exports = { snapshot };
+module.exports = { snapshot, fileKey, getBackupDir };

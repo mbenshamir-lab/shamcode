@@ -11,6 +11,7 @@
 
 const { TOOLS } = require('../../shared/constants');
 const { validateArgs } = require('./validate');
+const { goalTool } = require('./goal');
 const { readFile, writeFile, replaceCode, listDir, deleteFile, moveFile } = require('./fs');
 const { findSymbol } = require('./symbols-search');
 const { runTests }       = require('./test-runner');
@@ -63,6 +64,8 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
   switch (toolName) {
     case TOOLS.PLAN:
       return _executePlan(args, config, onEvent);
+    case TOOLS.GOAL:
+      return goalTool(args, config, projectRoot, onEvent);
     case TOOLS.SPAWN_AGENT:
       return spawnAgent(args, config, onEvent, projectRoot);
     case TOOLS.SPAWN_PARALLEL:

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
+const { version: PKG_VERSION } = require('../../package.json');
+
 /**
  * ShamCode MCP Server — transport stdio, protocole MCP 2024-11-05.
  *
@@ -93,7 +95,7 @@ async function handleLine(line) {
       reply(id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'code-harness', version: '0.1.0' },
+        serverInfo: { name: 'code-harness', version: PKG_VERSION },
         instructions: `Outils de code harness sur le projet : ${projectRoot}`,
       });
       break;

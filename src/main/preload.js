@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('harness', {
   // ── Processus en arrière-plan ──────────────────────────────────────────────
   /** Liste les processus actuels */
   listProcesses:    ()       => ipcRenderer.invoke(PROCS_IPC.LIST),
+  /** Arrête un processus lancé par l'agent (par nom) */
+  stopProcess:      (name)   => ipcRenderer.invoke(PROCS_IPC.STOP, { name }),
   /** Écoute les mises à jour des processus (démarrage, sortie, arrêt) */
   onProcsUpdate:    (cb)     => ipcRenderer.on(PROCS_IPC.UPDATE, (_, procs) => cb(procs)),
 
@@ -114,3 +116,11 @@ contextBridge.exposeInMainWorld('harness', {
   scheduleToggle: (id)     => ipcRenderer.invoke(IPC.SCHEDULE_TOGGLE, { id }),
   scheduleRun:    (id)     => ipcRenderer.invoke(IPC.SCHEDULE_RUN,    { id }),
 });
+
+// Thème de démarrage, lu synchroniquement par le <script> inline de index.html
+// avant le premier paint (évite le flash sombre en thème clair).
+try {
+  const themeArg = process.argv.find((a) => a.startsWith('--sham-theme='));
+  const bootTheme = themeArg && themeArg.endsWith('light') ? 'light' : 'dark';
+  contextBridge.exposeInMainWorld('__shamBoot', { theme: bootTheme });
+} catch { /* contexte partiel : app.js appliquera le thème */ }

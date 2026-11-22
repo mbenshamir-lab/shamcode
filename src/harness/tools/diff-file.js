@@ -5,11 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const os   = require('os');
-
-function _getBackupDir() {
-  return path.join(os.homedir(), 'AppData', 'Roaming', 'code-harness', 'backups');
-}
+const { getBackupDir, fileKey } = require('../safety/backup');
 
 /**
  * LCS-based diff entre deux tableaux de lignes.
@@ -59,7 +55,7 @@ function diffFile({ path: relPath, backup_index = 0 } = {}, guard) {
   try { absPath = guard(relPath); } catch (e) { return { ok: false, error: e.message }; }
 
   const basename    = path.basename(absPath);
-  const backupDir   = _getBackupDir();
+  const backupDir   = path.join(getBackupDir(), fileKey(absPath));
 
   // Lister les backups disponibles (plus récent en premier)
   const backups = [];
@@ -71,7 +67,7 @@ function diffFile({ path: relPath, backup_index = 0 } = {}, guard) {
         if (fs.existsSync(candidate)) backups.push({ timestamp: d, file: candidate });
       }
     }
-  } catch { /* APPDATA inaccessible — liste vide */ }
+  } catch { /* dossier de backups inaccessible — liste vide */ }
 
   if (backups.length === 0) return { ok: false, error: 'AUCUN_BACKUP_TROUVÉ' };
   if (backup_index >= backups.length) return { ok: false, error: 'INDEX_HORS_LIMITE' };

@@ -11,7 +11,7 @@ const BLOCKED_KEYS = new Set(['f5', 'f7', 'f12']);
 // 'u' code source · 'd' favori · '+ = - 0' zoom (le rendu doit rester à 100 %)
 const BLOCKED_MOD_KEYS = new Set([
   'r', 'p', 'f', 'g', 'h', 'j', 'n', 't', 'w', 'u', 'd',
-  '+', '=', '-', '_', '0'
+  '+', '=', '-', '_', '0',
 ]);
 
 // DevTools : F12, Ctrl+Shift+I / J / C

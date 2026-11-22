@@ -1,9 +1,16 @@
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+
+// Asynchrone : execSync bloquait le processus principal (donc l'UI et les IPC)
+// pendant toute la durée de la commande, jusqu'à 60 s.
+const execAsync = promisify(exec);
 
 const SHELL_TIMEOUT = 60000; // 60s max
 const MAX_OUTPUT    = 12000; // caractères max retournés
+const MAX_BUFFER    = 10 * 1024 * 1024; // 10 Mo — au-delà, exec renvoie ENOBUFS
 
-// Blacklist : commandes destructrices bloquées même si enableShell est actif
+// Blacklist : commandes destructrices bloquées même si enableShell est actif.
+// Ce n'est PAS un sandbox : la vraie protection reste enableShell=false par défaut.
 const BLOCKED_PATTERNS = [
   /rm\s+-rf?\s+[/\\]/i,          // rm -rf /  rm -r /
   /rd\s+\/s\s+\/q\s+[a-z]:\\/i, // rd /s /q C:\
@@ -39,18 +46,24 @@ async function runShell(args, projectRoot, config) {
   }
 
   try {
-    const raw = execSync(args.command, {
-      cwd:      projectRoot,
-      timeout:  SHELL_TIMEOUT,
-      encoding: 'utf8',
-      shell:    true,
+    const { stdout = '', stderr = '' } = await execAsync(args.command, {
+      cwd:        projectRoot,
+      timeout:    SHELL_TIMEOUT,
+      encoding:   'utf8',
+      shell:      true,
+      maxBuffer:  MAX_BUFFER,
+      windowsHide: true,
     });
-    const stdout = (raw || '').slice(0, MAX_OUTPUT);
-    return { ok: true, stdout, truncated: raw.length > MAX_OUTPUT };
+    return {
+      ok: true,
+      stdout: stdout.slice(0, MAX_OUTPUT),
+      ...(stderr ? { stderr: stderr.slice(0, 500) } : {}),
+      truncated: stdout.length > MAX_OUTPUT,
+    };
   } catch (e) {
     const stdout = (e.stdout || '').slice(0, MAX_OUTPUT);
     const stderr = (e.stderr || e.message || '').slice(0, 500);
-    return { ok: false, error: stderr, stdout, code: e.status ?? -1 };
+    return { ok: false, error: stderr, stdout, code: e.code ?? -1 };
   }
 }
 

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8" /></head>
+<head><meta charset="UTF-8" />
+  <!-- Whisper/onnxruntime : WASM local + téléchargement du modèle depuis HuggingFace. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'self' file: 'unsafe-inline'; connect-src 'self' file: https:; worker-src 'self' file: blob:; img-src 'self' file: data: blob:; media-src 'self' file: blob: data:; object-src 'none'; base-uri 'none'" /></head>
 <body>
   <!-- Fenêtre cachée — transcription vocale Whisper (Transformers.js). Jamais visible. -->
   <!-- backgroundThrottling: false dans windows.js : sinon la transcription ralentit en arrière-plan. -->

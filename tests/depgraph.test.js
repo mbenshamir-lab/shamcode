@@ -43,8 +43,8 @@ describe('depgraph — buildDepGraph', () => {
   });
 
   test('import ES modules relatif détecté', () => {
-    write(root, 'src/a.js', `import { foo } from './b';\nconsole.log(foo);`);
-    write(root, 'src/b.js', `export function foo() {}`);
+    write(root, 'src/a.js', 'import { foo } from \'./b\';\nconsole.log(foo);');
+    write(root, 'src/b.js', 'export function foo() {}');
     const { buildDepGraph } = loadModule(root);
     const { deps, dependents } = buildDepGraph(root);
     assert.ok(deps['src/a.js']?.includes('src/b.js'), 'a.js doit importer b.js');
@@ -52,16 +52,16 @@ describe('depgraph — buildDepGraph', () => {
   });
 
   test('require CJS relatif détecté', () => {
-    write(root, 'lib/x.js', `const y = require('./y');\n`);
-    write(root, 'lib/y.js', `module.exports = 42;`);
+    write(root, 'lib/x.js', 'const y = require(\'./y\');\n');
+    write(root, 'lib/y.js', 'module.exports = 42;');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     assert.ok(deps['lib/x.js']?.includes('lib/y.js'));
   });
 
   test('import absolu (node_modules) ignoré', () => {
-    write(root, 'src/app.js', `import React from 'react';\nimport { foo } from './utils';`);
-    write(root, 'src/utils.js', `export const foo = 1;`);
+    write(root, 'src/app.js', 'import React from \'react\';\nimport { foo } from \'./utils\';');
+    write(root, 'src/utils.js', 'export const foo = 1;');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     const imports = deps['src/app.js'] || [];
@@ -70,24 +70,24 @@ describe('depgraph — buildDepGraph', () => {
   });
 
   test('résolution sans extension (.js implicite)', () => {
-    write(root, 'src/main.js', `import { init } from './core';`);
-    write(root, 'src/core.js', `export function init() {}`);
+    write(root, 'src/main.js', 'import { init } from \'./core\';');
+    write(root, 'src/core.js', 'export function init() {}');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     assert.ok(deps['src/main.js']?.includes('src/core.js'));
   });
 
   test('résolution répertoire → index.js', () => {
-    write(root, 'src/app.js', `import stuff from './utils';`);
-    write(root, 'src/utils/index.js', `export default {};`);
+    write(root, 'src/app.js', 'import stuff from \'./utils\';');
+    write(root, 'src/utils/index.js', 'export default {};');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     assert.ok(deps['src/app.js']?.includes('src/utils/index.js'));
   });
 
   test('incrémental : fichier inchangé non re-parsé', () => {
-    write(root, 'a.js', `import './b.js';`);
-    write(root, 'b.js', `export const x = 1;`);
+    write(root, 'a.js', 'import \'./b.js\';');
+    write(root, 'b.js', 'export const x = 1;');
     const { buildDepGraph } = loadModule(root);
     buildDepGraph(root);  // first build
 
@@ -103,8 +103,8 @@ describe('depgraph — buildDepGraph', () => {
   });
 
   test('fichier supprimé retiré du graphe', () => {
-    write(root, 'x.js', `import './y.js';`);
-    write(root, 'y.js', `export const z = 2;`);
+    write(root, 'x.js', 'import \'./y.js\';');
+    write(root, 'y.js', 'export const z = 2;');
     const { buildDepGraph } = loadModule(root);
     buildDepGraph(root);
 
@@ -116,16 +116,16 @@ describe('depgraph — buildDepGraph', () => {
   });
 
   test('dynamic import() détecté', () => {
-    write(root, 'lazy.js', `const mod = import('./heavy.js');`);
-    write(root, 'heavy.js', `export default 42;`);
+    write(root, 'lazy.js', 'const mod = import(\'./heavy.js\');');
+    write(root, 'heavy.js', 'export default 42;');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     assert.ok(deps['lazy.js']?.includes('heavy.js'));
   });
 
   test('TypeScript .ts détecté', () => {
-    write(root, 'src/index.ts', `import { helper } from './helpers';`);
-    write(root, 'src/helpers.ts', `export function helper() {}`);
+    write(root, 'src/index.ts', 'import { helper } from \'./helpers\';');
+    write(root, 'src/helpers.ts', 'export function helper() {}');
     const { buildDepGraph } = loadModule(root);
     const { deps } = buildDepGraph(root);
     assert.ok(deps['src/index.ts']?.includes('src/helpers.ts'));
@@ -139,9 +139,9 @@ describe('depgraph — queryFile', () => {
   afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
   test('retourne imports et dependents', () => {
-    write(root, 'src/a.js', `import './b.js';`);
-    write(root, 'src/b.js', `import './c.js';`);
-    write(root, 'src/c.js', `export const x = 1;`);
+    write(root, 'src/a.js', 'import \'./b.js\';');
+    write(root, 'src/b.js', 'import \'./c.js\';');
+    write(root, 'src/c.js', 'export const x = 1;');
     delete require.cache[require.resolve('../src/harness/context/depgraph.js')];
     const { queryFile } = require('../src/harness/context/depgraph.js');
     const r = queryFile(root, 'src/b.js');
@@ -173,8 +173,8 @@ describe('depgraph-tool — find_dependents / find_dependencies', () => {
   }
 
   test('find_dependents retourne qui importe le fichier', () => {
-    write(root, 'src/core.js', `export const x = 1;`);
-    write(root, 'src/app.js', `import './core.js';`);
+    write(root, 'src/core.js', 'export const x = 1;');
+    write(root, 'src/app.js', 'import \'./core.js\';');
     // Build graph first
     delete require.cache[require.resolve('../src/harness/context/depgraph.js')];
     require('../src/harness/context/depgraph.js').buildDepGraph(root);
@@ -187,8 +187,8 @@ describe('depgraph-tool — find_dependents / find_dependencies', () => {
   });
 
   test('find_dependencies retourne ce que le fichier importe', () => {
-    write(root, 'src/core.js', `export const x = 1;`);
-    write(root, 'src/app.js', `import './core.js';`);
+    write(root, 'src/core.js', 'export const x = 1;');
+    write(root, 'src/app.js', 'import \'./core.js\';');
     delete require.cache[require.resolve('../src/harness/context/depgraph.js')];
     require('../src/harness/context/depgraph.js').buildDepGraph(root);
 
@@ -208,9 +208,9 @@ describe('depgraph-tool — find_dependents / find_dependencies', () => {
   });
 
   test('BFS depth=2 remonte deux niveaux', () => {
-    write(root, 'a.js', `import './b.js';`);
-    write(root, 'b.js', `import './c.js';`);
-    write(root, 'c.js', `export const z = 3;`);
+    write(root, 'a.js', 'import \'./b.js\';');
+    write(root, 'b.js', 'import \'./c.js\';');
+    write(root, 'c.js', 'export const z = 3;');
     delete require.cache[require.resolve('../src/harness/context/depgraph.js')];
     require('../src/harness/context/depgraph.js').buildDepGraph(root);
 
@@ -230,7 +230,7 @@ describe('depgraph-tool — find_dependents / find_dependencies', () => {
   });
 
   test('dispatch reconnaît find_dependents', async () => {
-    write(root, 'src/x.js', `export const x = 1;`);
+    write(root, 'src/x.js', 'export const x = 1;');
     delete require.cache[require.resolve('../src/harness/context/depgraph.js')];
     delete require.cache[require.resolve('../src/harness/tools/depgraph-tool.js')];
     delete require.cache[require.resolve('../src/harness/tools/index.js')];

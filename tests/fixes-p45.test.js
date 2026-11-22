@@ -6,7 +6,7 @@ const path   = require('path');
 
 // ── Extraire les fonctions pures depuis agent.js ──────────────────────────────
 const agentSrc = require('fs').readFileSync(
-  path.join(__dirname, '../src/harness/agent.js'), 'utf8'
+  path.join(__dirname, '../src/harness/agent.js'), 'utf8',
 );
 
 // _windowMessages (signature étendue : (messages, stateBlock, opts))
@@ -103,7 +103,7 @@ describe('batch_replace invalide _readCache — présence dans agent.js', () => 
   it('clear() du cache est appelé après BATCH_REPLACE', () => {
     assert.ok(
       agentSrc.includes('TOOLS.BATCH_REPLACE') && agentSrc.includes('_readCache.clear()'),
-      'batch_replace doit vider le cache'
+      'batch_replace doit vider le cache',
     );
   });
 
@@ -111,7 +111,7 @@ describe('batch_replace invalide _readCache — présence dans agent.js', () => 
 
 // ── Fix 3 : BLOC_INTROUVABLE hint contextuel ───────────────────────────────────
 const fsSrc = require('fs').readFileSync(
-  path.join(__dirname, '../src/harness/tools/fs.js'), 'utf8'
+  path.join(__dirname, '../src/harness/tools/fs.js'), 'utf8',
 );
 
 describe('BLOC_INTROUVABLE — hint contextuel', () => {
@@ -119,21 +119,21 @@ describe('BLOC_INTROUVABLE — hint contextuel', () => {
   it('le hint cherche la première ligne de old_string (code présent)', () => {
     assert.ok(
       fsSrc.includes('firstLine') && fsSrc.includes('matchIdx'),
-      'logique de recherche de firstLine absente de fs.js'
+      'logique de recherche de firstLine absente de fs.js',
     );
   });
 
   it('retourne un hint basé sur la zone détectée si matchIdx >= 0', () => {
     assert.ok(
       fsSrc.includes('zone détectée'),
-      'message "zone détectée" absent'
+      'message "zone détectée" absent',
     );
   });
 
   it('fallback sur 20 premières lignes si aucune ligne trouvée', () => {
     assert.ok(
       fsSrc.includes('Début du fichier (20 lignes)'),
-      'fallback 20 lignes absent'
+      'fallback 20 lignes absent',
     );
   });
 
@@ -141,7 +141,7 @@ describe('BLOC_INTROUVABLE — hint contextuel', () => {
 
 // ── Fix 4 : RAG store flush() ─────────────────────────────────────────────────
 const storeSrc = require('fs').readFileSync(
-  path.join(__dirname, '../src/harness/rag/store.js'), 'utf8'
+  path.join(__dirname, '../src/harness/rag/store.js'), 'utf8',
 );
 
 describe('RAG store — flush() séparé de upsert()', () => {
@@ -165,7 +165,7 @@ describe('RAG store — flush() séparé de upsert()', () => {
   it('agent.js appelle ragStore.flush() après indexProject', () => {
     assert.ok(
       agentSrc.includes('ragStore.flush()'),
-      'ragStore.flush() absent de agent.js'
+      'ragStore.flush() absent de agent.js',
     );
   });
 

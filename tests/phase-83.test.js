@@ -31,6 +31,7 @@ describe('Scanner de secrets — fs.js', () => {
     // Plutôt : on crée un wrapper de test
     const fnMatch = src.match(/function _detectSecrets\(content\) \{([\s\S]+?)\n\}/);
     assert.ok(fnMatch, '_detectSecrets doit être définie dans fs.js');
+    // eslint-disable-next-line no-new-func -- exécute la fonction extraite de fs.js
     _detectSecrets = new Function('content', `
       const SECRET_PATTERNS = ${src.match(/const SECRET_PATTERNS = (\[[\s\S]+?\]);/)[1]};
       ${fnMatch[0].slice('function _detectSecrets(content) {'.length, -1)}
@@ -51,7 +52,7 @@ describe('Scanner de secrets — fs.js', () => {
   });
 
   it('détecte une clé AWS', () => {
-    const w = _detectSecrets(`AKIAIOSFODNN7EXAMPLE`);
+    const w = _detectSecrets('AKIAIOSFODNN7EXAMPLE');
     assert.ok(w.length > 0);
   });
 
@@ -217,7 +218,7 @@ describe('Input image — agent + engines', () => {
 
   it('_buildTaskContent retourne string si pas d\'images', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/harness/agent.js'), 'utf8');
-    assert.ok(src.includes("if (!images || images.length === 0) return task"), 'fallback string sans images');
+    assert.ok(src.includes('if (!images || images.length === 0) return task'), 'fallback string sans images');
   });
 
   it('_buildTaskContent retourne tableau avec images', () => {

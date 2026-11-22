@@ -156,5 +156,5 @@ test('settings.js — lit et persiste enableFeedbackLearning', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer-settings/settings.js'), 'utf8');
   assert.ok(src.includes('enableFeedbackLearning'),        'enableFeedbackLearning absent');
   assert.ok(src.includes('sm-enable-feedback-learning'),   'id sm-enable-feedback-learning absent');
-  assert.ok(src.includes("_autoSave({ enableFeedbackLearning:"), '_autoSave absent');
+  assert.ok(src.includes('_autoSave({ enableFeedbackLearning:'), '_autoSave absent');
 });

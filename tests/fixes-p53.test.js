@@ -64,7 +64,7 @@ describe('approval-toggle — app.js', () => {
   it('_refreshApprovalToggle appelé au chargement config', () => {
     assert.ok(
       appJs.includes('_refreshApprovalToggle()'),
-      '_refreshApprovalToggle doit être appelé après chargement config'
+      '_refreshApprovalToggle doit être appelé après chargement config',
     );
   });
 });

@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 // Extraire les fonctions pures du fichier renderer
 const src = require('fs').readFileSync(
   require('path').join(__dirname, '../src/renderer-visible/app.js'),
-  'utf8'
+  'utf8',
 );
 
 // Extraire _trunc

@@ -3,7 +3,18 @@
 
 const { app, globalShortcut, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { IPC } = require('../shared/constants');
+
+// Lancement détaché (pipe stdout/stderr fermé par le parent, service Windows) :
+// le premier console.* lève EPIPE et tue le processus principal — observé avec
+// node-llama-cpp qui journalise via console.warn. Un flux mort ne doit jamais
+// faire tomber l'application.
+for (const stream of [process.stdout, process.stderr]) {
+  if (stream && typeof stream.on === 'function') {
+    stream.on('error', () => { /* EPIPE / flux fermé : ignore */ });
+  }
+}
 
 // Pas de menus : l'application n'est pas un navigateur. Supprimer le menu global
 // retire aussi ses accélérateurs implicites (Ctrl+R reload, Ctrl+0/+ zoom, F12 devtools).
@@ -14,11 +25,49 @@ if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 // Deux clones portent le même `name` (code-harness), donc le même %APPDATA%\code-harness :
 // leurs caches Chromium se disputaient les mêmes verrous (cache_util_win, gpu_disk_cache,
 // quota_database). Doit être fixé AVANT app.whenReady(), avant création des caches.
-const { resolveUserDataDir } = require('./user-data');
-app.setPath('userData', resolveUserDataDir({
-  appData: app.getPath('appData'),
-  projectRoot: path.join(__dirname, '../..'),
-}));
+const { resolveUserDataDir, migrateLegacyConfig } = require('./user-data');
+
+// Mode portable / environnement restreint : HARNESS_USER_DATA_DIR force le dossier
+// de données (caches Chromium, config, sessions, RAG, logs) sans toucher au dossier
+// %APPDATA% — utile quand l'écriture y est refusée (sandbox, poste verrouillé).
+const explicitUserData = process.env.HARNESS_USER_DATA_DIR;
+const projectRoot = path.join(__dirname, '../..');
+
+/** Vérifie qu'un dossier est réellement inscriptible (pas seulement existant). */
+function _canWrite(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.write-test-${process.pid}`);
+    fs.writeFileSync(probe, '1', 'utf8');
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let userDataDir;
+if (explicitUserData) {
+  userDataDir = path.resolve(explicitUserData);
+  fs.mkdirSync(userDataDir, { recursive: true });
+} else {
+  const preferred = resolveUserDataDir({
+    appData: app.getPath('appData'),
+    projectRoot,
+  });
+  // Certains environnements (sandbox, antivirus, session non interactive) refusent
+  // l'écriture dans %APPDATA% : on bascule dans le projet plutôt que de laisser
+  // sessions/config/backups échouer en EPERM à chaque action.
+  userDataDir = _canWrite(preferred) ? preferred : path.join(projectRoot, '.harness-runtime');
+  fs.mkdirSync(userDataDir, { recursive: true });
+}
+app.setPath('userData', userDataDir);
+
+// Les modules hors Electron (config, sessions, backups, RAG, logs) résolvent leur
+// dossier via HARNESS_DATA_DIR. Sans cela ils retombaient sur %APPDATA%\code-harness
+// et les deux copies partageaient encore config, clés API, sessions et backups.
+process.env.HARNESS_DATA_DIR = userDataDir;
+migrateLegacyConfig({ appData: app.getPath('appData'), userDataDir });
 
 // Hot-reload en développement : redémarre automatiquement quand src/ change.
 // app.isPackaged = false en dev (electron .), true dans le .exe distribué.

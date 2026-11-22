@@ -5,13 +5,21 @@ const assert = require('node:assert/strict');
 
 const src = require('fs').readFileSync(
   require('path').join(__dirname, '../src/renderer-visible/app.js'),
-  'utf8'
+  'utf8',
 );
 
 const match = src.match(/function _extractFinishMessage\(buf\) \{([\s\S]*?)\n  \}/);
 assert.ok(match, '_extractFinishMessage introuvable dans app.js');
 
+// Le décodage des séquences JSON vit dans _decodeStreamString (partagé avec le
+// rendu du stream) : on l'injecte dans le module isolé avec la fonction testée.
+const decodeMatch = src.match(/function _decodeStreamString\(raw\) \{([\s\S]*?)\n  \}/);
+assert.ok(decodeMatch, '_decodeStreamString introuvable dans app.js');
+
 const moduleCode = `
+  function _decodeStreamString(raw) {
+    ${decodeMatch[1]}
+  }
   function _extractFinishMessage(buf) {
     ${match[1]}
   }
@@ -59,6 +67,12 @@ describe('_extractFinishMessage', () => {
     const buf = '{"tool":"finish","args":{"summary":"chemin\\\\fichier"}}';
     const result = _extractFinishMessage(buf);
     assert.equal(result, 'chemin\\fichier');
+  });
+
+  it('un chemin Windows ne devient pas un saut de ligne', () => {
+    // Régression : `\n` était décodé avant `\\`, donc C:\new devenait C:<LF>ew.
+    const buf = '{"tool":"finish","args":{"summary":"C:\\\\new\\\\table.txt"}}';
+    assert.equal(_extractFinishMessage(buf), 'C:\\new\\table.txt');
   });
 
   it('décode \\t en tabulation', () => {
