@@ -1,7 +1,7 @@
 # CODE_INDEX — Fonctions publiques exportées
 
 > Généré le 2026-11-22 par `npm run index`.
-> **209 symboles** dans **89 modules**.
+> **215 symboles** dans **91 modules**.
 > Ne pas modifier manuellement — régénérer avec `npm run index`.
 
 ---
@@ -22,7 +22,7 @@
 - [src/harness/goals/model.js](#src-harness-goals-model-js) (6)
 - [src/harness/goals/policy.js](#src-harness-goals-policy-js) (5)
 - [src/harness/goals/store.js](#src-harness-goals-store-js) (7)
-- [src/harness/llm/base.js](#src-harness-llm-base-js) (1)
+- [src/harness/llm/base.js](#src-harness-llm-base-js) (2)
 - [src/harness/llm/list-models.js](#src-harness-llm-list-models-js) (1)
 - [src/harness/llm/router.js](#src-harness-llm-router-js) (1)
 - [src/harness/mcp/registry.js](#src-harness-mcp-registry-js) (1)
@@ -36,7 +36,8 @@
 - [src/harness/prompts/profile.js](#src-harness-prompts-profile-js) (1)
 - [src/harness/prompts/system.js](#src-harness-prompts-system-js) (1)
 - [src/harness/rag/embedder.js](#src-harness-rag-embedder-js) (2)
-- [src/harness/rag/indexer.js](#src-harness-rag-indexer-js) (3)
+- [src/harness/rag/indexer.js](#src-harness-rag-indexer-js) (4)
+- [src/harness/rag/lexical.js](#src-harness-rag-lexical-js) (1)
 - [src/harness/rag/retrieve.js](#src-harness-rag-retrieve-js) (1)
 - [src/harness/rag/store.js](#src-harness-rag-store-js) (1)
 - [src/harness/safety/backup.js](#src-harness-safety-backup-js) (3)
@@ -75,12 +76,13 @@
 - [src/harness/tools/read-url.js](#src-harness-tools-read-url-js) (1)
 - [src/harness/tools/restore.js](#src-harness-tools-restore-js) (1)
 - [src/harness/tools/rules.js](#src-harness-tools-rules-js) (4)
+- [src/harness/tools/run-command.js](#src-harness-tools-run-command-js) (1)
 - [src/harness/tools/scratchpad-tool.js](#src-harness-tools-scratchpad-tool-js) (1)
 - [src/harness/tools/shell.js](#src-harness-tools-shell-js) (1)
-- [src/harness/tools/spawn.js](#src-harness-tools-spawn-js) (3)
+- [src/harness/tools/spawn.js](#src-harness-tools-spawn-js) (4)
 - [src/harness/tools/speech.js](#src-harness-tools-speech-js) (2)
 - [src/harness/tools/symbols-search.js](#src-harness-tools-symbols-search-js) (1)
-- [src/harness/tools/test-runner.js](#src-harness-tools-test-runner-js) (2)
+- [src/harness/tools/test-runner.js](#src-harness-tools-test-runner-js) (3)
 - [src/harness/tools/validate.js](#src-harness-tools-validate-js) (1)
 - [src/harness/tools/video.js](#src-harness-tools-video-js) (1)
 - [src/harness/tools/web-search.js](#src-harness-tools-web-search-js) (1)
@@ -172,7 +174,7 @@ function printAskUser(question, suggestions)
 
 ## src/harness/agent.js
 
-### `runAgent` — [src/harness/agent.js:154](src/harness/agent.js)
+### `runAgent` — [src/harness/agent.js:169](src/harness/agent.js)
 
 ```js
 async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent = () => {}, signal = null })
@@ -210,10 +212,10 @@ function resolveContextBudget({ engine, model, maxContextChars } = {})
 
 ## src/harness/context/builder.js
 
-### `buildContext` — [src/harness/context/builder.js:24](src/harness/context/builder.js)
+### `buildContext` — [src/harness/context/builder.js:64](src/harness/context/builder.js)
 
 ```js
-async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET, topK = 5 })
+async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET, topK, fillBudget = ...
 ```
 
 > Construit le contexte à injecter dans le prompt.   task:        string,   projectRoot: string,   ragStore?:   object,       // rag/store instance (optionnel en MVP)   targetFile?: string,       // chemin relatif du fichier principal de la tâche   maxChars?:   number, }} opts
@@ -494,6 +496,17 @@ class LlmEngine
 
 > Interface commune à tous les moteurs LLM. Chaque moteur doit étendre cette classe.
 
+### `httpError` — [src/harness/llm/base.js:25](src/harness/llm/base.js)
+
+```js
+async function httpError(prefix, res)
+```
+
+> Erreur d'une réponse HTTP non-OK. retryAfter (secondes) permet au router de respecter le délai demandé par le fournisseur plutôt que de le deviner.
+
+- @param {string}   prefix  ex. 'CLAUDE'
+- @param {Response} res
+
 ---
 
 ## src/harness/llm/list-models.js
@@ -510,13 +523,11 @@ async function listModels({ engine, apiKey, baseUrl })
 
 ## src/harness/llm/router.js
 
-### `LlmRouter` — [src/harness/llm/router.js:13](src/harness/llm/router.js)
+### `LlmRouter` — [src/harness/llm/router.js:32](src/harness/llm/router.js)
 
 ```js
 class LlmRouter
 ```
-
-> Router LLM — chaîne de fallback entre moteurs. Stratégie : essaie le primaire, puis les fallbacks dans l'ordre. Chaque moteur passe d'abord par isReady() avant generate(). Si tous échouent, retourne la dernière erreur.   const router = new LlmRouter(['openai-compat', 'gemini', 'claude'], registry, config);   const text = await router.generate(messages);
 
 ---
 
@@ -647,7 +658,7 @@ function applyRetention(maxSessions = 100)
 
 ## src/harness/parser.js
 
-### `extractToolCall` — [src/harness/parser.js:8](src/harness/parser.js)
+### `extractToolCall` — [src/harness/parser.js:33](src/harness/parser.js)
 
 ```js
 function extractToolCall(rawText)
@@ -747,7 +758,7 @@ function tokenize(text)
 
 - @param {string} text
 
-### `encode` — [src/harness/rag/embedder.js:77](src/harness/rag/embedder.js)
+### `encode` — [src/harness/rag/embedder.js:80](src/harness/rag/embedder.js)
 
 ```js
 function encode(text)
@@ -761,7 +772,17 @@ function encode(text)
 
 ## src/harness/rag/indexer.js
 
-### `_findBoundaries` — [src/harness/rag/indexer.js:56](src/harness/rag/indexer.js)
+### `ragStoreId` — [src/harness/rag/indexer.js:41](src/harness/rag/indexer.js)
+
+```js
+function ragStoreId(projectRoot)
+```
+
+> Identifiant du store RAG d'un projet. Inclut les versions : un index écrit avec un autre encodage donnerait des vecteurs incomparables.
+
+- @param {string} projectRoot
+
+### `_findBoundaries` — [src/harness/rag/indexer.js:80](src/harness/rag/indexer.js)
 
 ```js
 function _findBoundaries(lines, ext)
@@ -772,7 +793,7 @@ function _findBoundaries(lines, ext)
 - @param {string[]} lines
 - @param {string}   ext   extension en minuscules (ex. '.js')
 
-### `chunkFile` — [src/harness/rag/indexer.js:76](src/harness/rag/indexer.js)
+### `chunkFile` — [src/harness/rag/indexer.js:100](src/harness/rag/indexer.js)
 
 ```js
 function chunkFile(filePath, content, hash)
@@ -784,7 +805,7 @@ function chunkFile(filePath, content, hash)
 - @param {string} content
 - @param {string} hash
 
-### `indexProject` — [src/harness/rag/indexer.js:137](src/harness/rag/indexer.js)
+### `indexProject` — [src/harness/rag/indexer.js:161](src/harness/rag/indexer.js)
 
 ```js
 function indexProject(root, store, { onProgress } = {})
@@ -795,6 +816,19 @@ function indexProject(root, store, { onProgress } = {})
 - @param {string}   root    - Chemin absolu de la racine du projet
 - @param {object}   store   - Instance createStore()
 - @param {{ onProgress?: (file: string) => void }} opts
+
+---
+
+## src/harness/rag/lexical.js
+
+### `lexicalScores` — [src/harness/rag/lexical.js:26](src/harness/rag/lexical.js)
+
+```js
+function lexicalScores(chunks, terms)
+```
+
+- @param {{ path: string, content: string }[]} chunks
+- @param {string[]} terms  termes de la requête
 
 ---
 
@@ -814,7 +848,7 @@ async function retrieveRelevant(store, task, { topK = 5, projectRoot = null } = 
 
 ## src/harness/rag/store.js
 
-### `createStore` — [src/harness/rag/store.js:19](src/harness/rag/store.js)
+### `createStore` — [src/harness/rag/store.js:40](src/harness/rag/store.js)
 
 ```js
 function createStore(storeId)
@@ -921,7 +955,7 @@ function getIgnore(projectRoot)
 
 ## src/harness/safety/path-guard.js
 
-### `makeGuard` — [src/harness/safety/path-guard.js:12](src/harness/safety/path-guard.js)
+### `makeGuard` — [src/harness/safety/path-guard.js:31](src/harness/safety/path-guard.js)
 
 ```js
 function makeGuard(projectRoot)
@@ -1247,7 +1281,7 @@ function describeFamilies(toolNames)
 
 ## src/harness/tools/find-relevant.js
 
-### `findRelevantFiles` — [src/harness/tools/find-relevant.js:41](src/harness/tools/find-relevant.js)
+### `findRelevantFiles` — [src/harness/tools/find-relevant.js:40](src/harness/tools/find-relevant.js)
 
 ```js
 async function findRelevantFiles({ task, top_k }, projectRoot)
@@ -1272,7 +1306,7 @@ function _extractAllToolCalls(text)
 
 - @param {string} text
 
-### `_summarizeFailures` — [src/harness/tools/fix-loop.js:70](src/harness/tools/fix-loop.js)
+### `_summarizeFailures` — [src/harness/tools/fix-loop.js:74](src/harness/tools/fix-loop.js)
 
 ```js
 function _summarizeFailures(output)
@@ -1282,7 +1316,7 @@ function _summarizeFailures(output)
 
 - @param {string} output
 
-### `fixLoop` — [src/harness/tools/fix-loop.js:88](src/harness/tools/fix-loop.js)
+### `fixLoop` — [src/harness/tools/fix-loop.js:92](src/harness/tools/fix-loop.js)
 
 ```js
 async function fixLoop(args, guard, projectRoot, config)
@@ -1361,7 +1395,7 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
 - @param {{ backupBeforeWrite?: boolean, requestApproval?: Function }} config
 - @param {Function} onEvent
 
-### `listDir` — [src/harness/tools/fs.js:221](src/harness/tools/fs.js)
+### `listDir` — [src/harness/tools/fs.js:223](src/harness/tools/fs.js)
 
 ```js
 function listDir({ path: relPath = '.', recursive = false, depth = 3 }, guard, projectRoot = '')
@@ -1373,7 +1407,7 @@ function listDir({ path: relPath = '.', recursive = false, depth = 3 }, guard, p
 - @param {Function} guard
 - @param {string}   projectRoot
 
-### `deleteFile` — [src/harness/tools/fs.js:279](src/harness/tools/fs.js)
+### `deleteFile` — [src/harness/tools/fs.js:281](src/harness/tools/fs.js)
 
 ```js
 async function deleteFile({ path: relPath }, guard, config = {}, onEvent = () => {})
@@ -1386,7 +1420,7 @@ async function deleteFile({ path: relPath }, guard, config = {}, onEvent = () =>
 - @param {{ backupBeforeWrite?: boolean, requestApproval?: Function }} config
 - @param {Function} onEvent
 
-### `moveFile` — [src/harness/tools/fs.js:324](src/harness/tools/fs.js)
+### `moveFile` — [src/harness/tools/fs.js:326](src/harness/tools/fs.js)
 
 ```js
 async function moveFile({ path: relSrc, dest: relDest }, guard, config = {}, onEvent = () => {})
@@ -1783,6 +1817,21 @@ async function removeSkill(args, config)
 
 ---
 
+## src/harness/tools/run-command.js
+
+### `runCommand` — [src/harness/tools/run-command.js:27](src/harness/tools/run-command.js)
+
+```js
+function runCommand(command, { cwd, timeout, signal })
+```
+
+>   Ne rejette jamais : un échec de commande est un résultat comme un autre.
+
+- @param {string} command
+- @param {{ cwd: string, timeout: number, signal?: AbortSignal }} opts
+
+---
+
 ## src/harness/tools/scratchpad-tool.js
 
 ### `useScratchpad` — [src/harness/tools/scratchpad-tool.js:6](src/harness/tools/scratchpad-tool.js)
@@ -1797,7 +1846,7 @@ function useScratchpad({ action, key, value } = {}, scratchpad)
 
 ## src/harness/tools/shell.js
 
-### `runShell` — [src/harness/tools/shell.js:37](src/harness/tools/shell.js)
+### `runShell` — [src/harness/tools/shell.js:31](src/harness/tools/shell.js)
 
 ```js
 async function runShell(args, projectRoot, config)
@@ -1821,7 +1870,15 @@ function _buildSubContext(role, task, config, onEvent)
 
 > Construit le subConfig et le subOnEvent communs à spawnAgent et spawnParallel. Retourne aussi un collecteur modifiedFiles mis à jour par subOnEvent.
 
-### `spawnAgent` — [src/harness/tools/spawn.js:51](src/harness/tools/spawn.js)
+### `_subResult` — [src/harness/tools/spawn.js:50](src/harness/tools/spawn.js)
+
+```js
+function _subResult(role, result, modifiedFiles)
+```
+
+> Traduit le retour de runAgent pour le parent. Un échec reste un échec : présenté comme « terminé », il ferait construire la suite sur un travail qui n'a pas eu lieu. modifiedFiles reste renseigné, un sous-agent peut échouer après avoir écrit.
+
+### `spawnAgent` — [src/harness/tools/spawn.js:61](src/harness/tools/spawn.js)
 
 ```js
 async function spawnAgent({ role, task }, config, onEvent, projectRoot)
@@ -1832,7 +1889,7 @@ async function spawnAgent({ role, task }, config, onEvent, projectRoot)
 - @param {Function} onEvent
 - @param {string}   projectRoot
 
-### `spawnParallel` — [src/harness/tools/spawn.js:93](src/harness/tools/spawn.js)
+### `spawnParallel` — [src/harness/tools/spawn.js:103](src/harness/tools/spawn.js)
 
 ```js
 async function spawnParallel({ agents }, config, onEvent, projectRoot)
@@ -1892,16 +1949,28 @@ function _detectRunner(projectRoot)
 
 - @param {string} projectRoot
 
-### `runTests` — [src/harness/tools/test-runner.js:64](src/harness/tools/test-runner.js)
+### `runTests` — [src/harness/tools/test-runner.js:65](src/harness/tools/test-runner.js)
 
 ```js
-async function runTests(args, projectRoot)
+async function runTests(args, projectRoot, { signal } = {})
 ```
 
 > Lance les tests du projet. Si args.command est fourni, l'utilise tel quel (parmi les commandes whitelistées).
 
 - @param {{ command?: string }} args
 - @param {string} projectRoot
+- @param {{ signal?: AbortSignal }} [opts]
+
+### `_keepEnds` — [src/harness/tools/test-runner.js:119](src/harness/tools/test-runner.js)
+
+```js
+function _keepEnds(text, max)
+```
+
+> Coupe au milieu : les runners listent les échecs et le bilan en fin de sortie.
+
+- @param {string} text
+- @param {number} max
 
 ---
 
@@ -1985,7 +2054,7 @@ async function saveConfig(config)
 
 ## src/main/ipc.js
 
-### `registerIpcHandlers` — [src/main/ipc.js:65](src/main/ipc.js)
+### `registerIpcHandlers` — [src/main/ipc.js:73](src/main/ipc.js)
 
 ```js
 function registerIpcHandlers({ visibleWin, hiddenWin, config })
@@ -2165,7 +2234,7 @@ function createWindows(_config)
 
 > Crée la fenêtre visible (UI) et la fenêtre cachée (moteur LLM).
 
-### `openSettingsWindow` — [src/main/windows.js:85](src/main/windows.js)
+### `openSettingsWindow` — [src/main/windows.js:93](src/main/windows.js)
 
 ```js
 function openSettingsWindow(parentWin)
@@ -2175,7 +2244,7 @@ function openSettingsWindow(parentWin)
 
 - @param {BrowserWindow} parentWin — fenêtre principale (pour le centrage)
 
-### `openDesignWindow` — [src/main/windows.js:143](src/main/windows.js)
+### `openDesignWindow` — [src/main/windows.js:151](src/main/windows.js)
 
 ```js
 function openDesignWindow(parentWin)
@@ -2185,7 +2254,7 @@ function openDesignWindow(parentWin)
 
 - @param {BrowserWindow} parentWin
 
-### `getVoiceWindow` — [src/main/windows.js:195](src/main/windows.js)
+### `getVoiceWindow` — [src/main/windows.js:203](src/main/windows.js)
 
 ```js
 function getVoiceWindow()
@@ -2193,7 +2262,7 @@ function getVoiceWindow()
 
 > Fenêtre cachée de transcription vocale (Whisper), créée au premier usage seulement : un utilisateur qui n'active pas la dictée ne charge jamais ce renderer.
 
-### `openDonationWindow` — [src/main/windows.js:220](src/main/windows.js)
+### `openDonationWindow` — [src/main/windows.js:228](src/main/windows.js)
 
 ```js
 function openDonationWindow(parentWin, mainWin)

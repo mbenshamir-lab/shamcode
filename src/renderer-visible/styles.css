@@ -5211,3 +5211,91 @@ body[data-density="spacious"] { font-size: var(--fs-base, 14px); line-height: va
   object-fit: contain;
   border-radius: var(--r-md);
 }
+
+/* ── Carte objectif (ADR-031) ─────────────────────────────────────────────── */
+/* Une seule carte par tache : objectif, criteres prouves, budget, decisions.
+   Le gate de `finish` s'appuie dessus : elle doit rester lisible, pas decorative. */
+.goal-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+  margin: 6px 0 6px 16px;
+  padding: 8px 12px;
+  animation: slideDown 0.18s ease;
+}
+.goal-card.done    { border-left-color: var(--success); }
+.goal-card.blocked { border-left-color: var(--error); }
+.goal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.goal-title {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.goal-card.done .goal-title    { color: var(--success); }
+.goal-card.blocked .goal-title { color: var(--error); }
+.goal-status {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  font-family: var(--mono);
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+.goal-objective {
+  font-size: var(--text-sm);
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.goal-criteria {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.goal-crit {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.goal-crit-mark {
+  width: 12px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  color: var(--text-subtle);
+}
+.goal-crit.met .goal-crit-mark { color: var(--success); }
+.goal-crit.met .goal-crit-text { color: var(--text-subtle); text-decoration: line-through; }
+.goal-crit-verify {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+.goal-budget,
+.goal-decisions {
+  font-family: var(--mono);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  line-height: 1.6;
+}
+.goal-notice {
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: var(--text-2xs);
+  color: var(--text);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border-left: 2px solid var(--warning);
+  border-radius: var(--r-sm);
+}

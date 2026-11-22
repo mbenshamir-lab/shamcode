@@ -1342,12 +1342,25 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
         _clearStreamDiv();
         _activityParseRetry();
       } else if (event.type === 'tool_result' && event.result?.ok) {
+        // Chaque action `goal` renvoie l'objectif à jour : la carte suit les critères.
+        if (event.result.goal) _renderGoalCard(event.result.goal);
         _maybeAppendToolMedia(event);
       } else if (event.type === 'tool_result' && event.result && !event.result.ok) {
         _activityError(event.result.error);
         _tpAddExecStep(event.result.error?.slice(0, 40) || 'Erreur', 'error');
       } else if (event.type === 'note_user') {
         _appendNoteUser(event.message, event.level || 'info');
+      } else if (event.type === 'goal_created' || event.type === 'goal_done') {
+        _renderGoalCard(event.goal);
+      } else if (event.type === 'goal_blocked') {
+        _renderGoalCard(event.goal, { notice: event.goal?.blockReason || 'Objectif bloqué', move: true });
+      } else if (event.type === 'goal_budget_warning') {
+        _renderGoalCard(event.goal, {
+          notice: `Budget : ${event.steps}/${event.goal?.budget?.maxSteps ?? '?'} étapes consommées.`,
+          move: true,
+        });
+      } else if (event.type === 'goal_finish_rejected') {
+        _goalNotice(`Terminaison refusée : ${event.reason}`);
       } else if (event.type === 'plan_ready') {
         _clearStreamDiv();
         _tpSetPlan(event.plan);
@@ -3501,6 +3514,103 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
         detail.remove();
       }
     });
+  }
+
+  // ── Carte objectif (ADR-031) ───────────────────────────────────────────────
+  // Le gate de `finish` s'appuie sur ces critères : sans rendu, l'utilisateur
+  // voyait l'agent s'arrêter sans savoir quel critère manquait ni pourquoi.
+  let _goalCard = null;
+
+  const GOAL_STATUS = {
+    active:    { label: 'en cours',  cls: '' },
+    done:      { label: 'atteint',   cls: 'done' },
+    blocked:   { label: 'bloqué',    cls: 'blocked' },
+    abandoned: { label: 'abandonné', cls: 'blocked' },
+  };
+
+  /**
+   * Crée ou met à jour la carte de l'objectif courant. Une seule carte vivante :
+   * un nouvel objectif remplace l'ancien (l'historique reste dans .harness/goals).
+   */
+  function _renderGoalCard(goal, { notice = '', move = false } = {}) {
+    if (!goal || !Array.isArray(goal.criteria)) {
+      if (notice) _goalNotice(notice);
+      return;
+    }
+
+    const goalId = String(goal.id || '');
+    if (!_goalCard || !_goalCard.isConnected || _goalCard.dataset.goalId !== goalId) {
+      if (_goalCard && _goalCard.isConnected) _goalCard.remove();
+      _goalCard = document.createElement('div');
+      _goalCard.className = 'goal-card';
+      _goalCard.dataset.goalId = goalId;
+      _goalCard.setAttribute('role', 'group');
+      _goalCard.setAttribute('aria-label', 'Objectif de la tâche');
+      _goalCard.innerHTML = `
+        <div class="goal-head">
+          <span class="goal-title">OBJECTIF</span>
+          <span class="goal-status" data-goal-status></span>
+        </div>
+        <div class="goal-objective" data-goal-objective></div>
+        <ul class="goal-criteria" data-goal-criteria></ul>
+        <div class="goal-budget" data-goal-budget></div>
+        <div class="goal-decisions" data-goal-decisions></div>
+        <div class="goal-notice" data-goal-notice aria-live="polite" hidden></div>`;
+      _appendToChat(_goalCard);
+    }
+
+    const state = GOAL_STATUS[goal.status] || GOAL_STATUS.active;
+    _goalCard.classList.remove('done', 'blocked');
+    if (state.cls) _goalCard.classList.add(state.cls);
+
+    _goalCard.querySelector('[data-goal-status]').textContent = state.label;
+    _goalCard.querySelector('[data-goal-objective]').textContent = goal.objective || '';
+
+    const met = goal.criteria.filter(c => c.status === 'met').length;
+    _goalCard.querySelector('[data-goal-criteria]').innerHTML = goal.criteria.map(c => {
+      const ok = c.status === 'met';
+      return `<li class="goal-crit${ok ? ' met' : ''}">`
+        + `<span class="goal-crit-mark">${ok ? '✓' : '○'}</span>`
+        + `<span class="goal-crit-text">${_escHtml(c.text || '')}</span>`
+        + `<span class="goal-crit-verify">${_escHtml(c.verify?.kind || '')}</span>`
+        + '</li>';
+    }).join('');
+
+    const budget = goal.budget || {};
+    _goalCard.querySelector('[data-goal-budget]').textContent =
+      `Critères ${met}/${goal.criteria.length} · ${budget.maxSteps ?? '?'} étapes max · `
+      + `${budget.maxFiles ?? '?'} fichiers · ${goal.replans ?? 0}/${budget.maxReplans ?? 0} réplans`;
+
+    const decisions = Array.isArray(goal.decisions) ? goal.decisions : [];
+    const last = decisions[decisions.length - 1];
+    _goalCard.querySelector('[data-goal-decisions]').textContent = last
+      ? `Décisions : ${decisions.length} · ${last.class} : ${last.choice}`
+      : 'Décisions : aucune';
+
+    const noticeEl = _goalCard.querySelector('[data-goal-notice]');
+    const text = notice || (goal.status === 'blocked' ? (goal.blockReason || '') : '');
+    if (text) {
+      noticeEl.textContent = text;
+      noticeEl.hidden = false;
+    } else {
+      noticeEl.hidden = true;
+    }
+
+    // Un refus de terminaison ou un blocage doit être visible : on remonte la carte.
+    if (move) _appendToChat(_goalCard);
+  }
+
+  /** Message d'objectif sans carte (refus de finish avant tout `goal set`). */
+  function _goalNotice(text) {
+    if (!text) return;
+    const el = _goalCard?.isConnected ? _goalCard.querySelector('[data-goal-notice]') : null;
+    if (el) {
+      el.textContent = text;
+      el.hidden = false;
+      _appendToChat(_goalCard);
+      return;
+    }
+    _appendNoteUser(text, 'warn');
   }
 
   // ── Orchestration card — vue compacte d'un plan multi-phases ──────────────
