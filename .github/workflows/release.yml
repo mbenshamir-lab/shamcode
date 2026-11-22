@@ -1,0 +1,42 @@
+name: Release installer
+
+# L'installeur NSIS ne peut pas être produit sur le poste de développement :
+# electron-builder exécute l'installeur qu'il vient de créer (génération du
+# désinstalleur) et l'antivirus local tue le processus (exit null, stub 0,2 Mo).
+# Un runner GitHub, sans antivirus résident, le construit puis l'attache à la release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de release à compléter (ex: v0.4.0)"
+        required: true
+        default: "v0.4.0"
+
+permissions:
+  contents: write
+
+jobs:
+  nsis:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Pas de --ignore-scripts ici : le paquet embarque les binaires natifs
+      # de node-llama-cpp (moteur GGUF), téléchargés au postinstall.
+      - run: npm ci
+
+      - run: npx electron-builder --win --config electron-builder.yml
+
+      - name: Publier l'installeur sur la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ inputs.tag }}" dist/*.exe --clobber
