@@ -37,6 +37,17 @@ jobs:
       # (il exige GH_TOKEN et échoue). C'est l'étape gh ci-dessous qui publie.
       - run: npx electron-builder --win --config electron-builder.yml --publish never
 
+      # Le paquet doit contenir le moteur GGUF (binaires natifs déballés de l'asar)
+      # et les modules récents : un asar sans `goals` signifierait un build périmé.
+      - name: Vérifier le contenu du paquet
+        shell: bash
+        run: |
+          NATIFS="dist/win-unpacked/resources/app.asar.unpacked/node_modules/@node-llama-cpp"
+          test -d "$NATIFS" || { echo "::error::binaires natifs node-llama-cpp absents"; exit 1; }
+          ls "$NATIFS"
+          grep -aq 'goals' "dist/win-unpacked/resources/app.asar" \
+            || { echo "::error::module goals absent de l'asar"; exit 1; }
+
       - name: Publier l'installeur sur la release
         shell: bash
         env:
