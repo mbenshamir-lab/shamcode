@@ -13,7 +13,7 @@
  * (requête → chunks), et les tests peuvent valider l'expansion sans simuler builder.
  */
 
-const { encode } = require('./embedder');
+const { encode, tokenize } = require('./embedder');
 
 const DEP_DISCOUNT   = 0.6;   // score des chunks dépendances = score_direct × 0.6
 const DEP_EXTRA_MAX  = 3;     // au plus 3 chunks supplémentaires via le graphe
@@ -49,7 +49,7 @@ async function retrieveRelevant(store, task, { topK = 5, projectRoot = null } = 
   // Un vecteur nul = requête sans terme significatif
   if (queryVec.every(v => v === 0)) return [];
 
-  const direct = store.search(queryVec, topK);
+  const direct = store.search(queryVec, topK, tokenize(task));
 
   if (!projectRoot || direct.length === 0) {
     return direct.map(({ path, startLine, endLine, content, score }) => ({

@@ -43,6 +43,16 @@ function _buildSubContext(role, task, config, onEvent) {
 }
 
 /**
+ * Traduit le retour de runAgent pour le parent. Un échec reste un échec : présenté comme
+ * « terminé », il ferait construire la suite sur un travail qui n'a pas eu lieu.
+ * modifiedFiles reste renseigné, un sous-agent peut échouer après avoir écrit.
+ */
+function _subResult(role, result, modifiedFiles) {
+  if (!result.ok) return { ok: false, role, error: result.error || 'SOUS_AGENT_ÉCHOUÉ', modifiedFiles };
+  return { ok: true, role, summary: result.summary || 'Sous-tâche terminée.', modifiedFiles };
+}
+
+/**
  * @param {{ role: string, task: string }} args
  * @param {object}   config
  * @param {Function} onEvent
@@ -77,7 +87,7 @@ async function spawnAgent({ role, task }, config, onEvent, projectRoot) {
     });
     const files = [...modifiedFiles];
     onEvent({ type: 'sub_agent_done', role, label: profile.label, color: profile.color, result, modifiedFiles: files });
-    return { ok: true, role, summary: result.summary || 'Sous-tâche terminée.', modifiedFiles: files };
+    return _subResult(role, result, files);
   } catch (err) {
     const result = { ok: false, error: err.message };
     onEvent({ type: 'sub_agent_done', role, label: profile.label, color: profile.color, result, modifiedFiles: [] });
@@ -123,7 +133,7 @@ async function spawnParallel({ agents }, config, onEvent, projectRoot) {
       .then(result => {
         const files = [...modifiedFiles];
         onEvent({ type: 'sub_agent_done', role, label: profile.label, color: profile.color, result, modifiedFiles: files });
-        return { ok: true, role, summary: result.summary || 'Sous-tâche terminée.', modifiedFiles: files };
+        return _subResult(role, result, files);
       })
       .catch(err => {
         onEvent({ type: 'sub_agent_done', role, label: PROFILES[role].label, color: PROFILES[role].color, result: { ok: false, error: err.message }, modifiedFiles: [] });
@@ -135,7 +145,7 @@ async function spawnParallel({ agents }, config, onEvent, projectRoot) {
   const allOk   = results.every(r => r.ok);
   const allFiles = [...new Set(results.flatMap(r => r.modifiedFiles || []))];
 
-  return { ok: allOk, results, modifiedFiles: allFiles };
+  return { ok: allOk, ...(allOk ? {} : { error: 'SOUS_AGENTS_ÉCHOUÉS' }), results, modifiedFiles: allFiles };
 }
 
-module.exports = { spawnAgent, spawnParallel, _buildSubContext };
+module.exports = { spawnAgent, spawnParallel, _buildSubContext, _subResult };

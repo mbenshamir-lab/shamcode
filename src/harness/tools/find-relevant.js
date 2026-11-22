@@ -5,10 +5,9 @@
  * Retourne une liste ordonnée de chemins relatifs avec leur score.
  */
 
-const crypto = require('crypto');
 const { createStore } = require('../rag/store');
 const { retrieveRelevant } = require('../rag/retrieve');
-const { indexProject } = require('../rag/indexer');
+const { indexProject, ragStoreId } = require('../rag/indexer');
 
 const MAX_FILES = 10;
 
@@ -45,8 +44,7 @@ async function findRelevantFiles({ task, top_k }, projectRoot) {
   const topK = Math.min(top_k ?? 20, 50); // on récupère plus de chunks pour bien couvrir les fichiers
 
   try {
-    const storeId = crypto.createHash('sha1').update(projectRoot).digest('hex').slice(0, 12);
-    const ragStore = createStore(storeId);
+    const ragStore = createStore(ragStoreId(projectRoot));
 
     // S'assurer que le projet est indexé (incrémental — rapide si déjà à jour)
     indexProject(projectRoot, ragStore);

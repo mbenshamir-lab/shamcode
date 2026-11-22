@@ -1,16 +1,10 @@
-const { exec } = require('child_process');
-const { promisify } = require('util');
-
-// Asynchrone : execSync bloquait le processus principal (donc l'UI et les IPC)
-// pendant toute la durée de la commande, jusqu'à 60 s.
-const execAsync = promisify(exec);
+const { runCommand } = require('./run-command');
+const { _keepEnds }  = require('./test-runner');
 
 const SHELL_TIMEOUT = 60000; // 60s max
 const MAX_OUTPUT    = 12000; // caractères max retournés
-const MAX_BUFFER    = 10 * 1024 * 1024; // 10 Mo — au-delà, exec renvoie ENOBUFS
 
-// Blacklist : commandes destructrices bloquées même si enableShell est actif.
-// Ce n'est PAS un sandbox : la vraie protection reste enableShell=false par défaut.
+// Blacklist : commandes destructrices bloquées même si enableShell est actif
 const BLOCKED_PATTERNS = [
   /rm\s+-rf?\s+[/\\]/i,          // rm -rf /  rm -r /
   /rd\s+\/s\s+\/q\s+[a-z]:\\/i, // rd /s /q C:\
@@ -45,26 +39,17 @@ async function runShell(args, projectRoot, config) {
     return { ok: false, error: `COMMANDE_BLOQUÉE (destructrice): ${args.command.slice(0, 80)}` };
   }
 
-  try {
-    const { stdout = '', stderr = '' } = await execAsync(args.command, {
-      cwd:        projectRoot,
-      timeout:    SHELL_TIMEOUT,
-      encoding:   'utf8',
-      shell:      true,
-      maxBuffer:  MAX_BUFFER,
-      windowsHide: true,
-    });
-    return {
-      ok: true,
-      stdout: stdout.slice(0, MAX_OUTPUT),
-      ...(stderr ? { stderr: stderr.slice(0, 500) } : {}),
-      truncated: stdout.length > MAX_OUTPUT,
-    };
-  } catch (e) {
-    const stdout = (e.stdout || '').slice(0, MAX_OUTPUT);
-    const stderr = (e.stderr || e.message || '').slice(0, 500);
-    return { ok: false, error: stderr, stdout, code: e.code ?? -1 };
+  const run = await runCommand(args.command, { cwd: projectRoot, timeout: SHELL_TIMEOUT, signal: config._signal });
+  if (run.aborted) return { ok: false, error: 'ANNULÉ' };
+
+  const stdout = _keepEnds(run.stdout, MAX_OUTPUT);
+  if (run.code === 0 && !run.timedOut) {
+    return { ok: true, stdout, truncated: run.stdout.length > MAX_OUTPUT };
   }
+  const error = run.timedOut
+    ? `COMMANDE_DÉLAI_DÉPASSÉ (${SHELL_TIMEOUT / 1000}s) — utilise start_process pour une commande longue`
+    : (run.stderr || run.message).slice(0, 500);
+  return { ok: false, error, stdout, code: run.code };
 }
 
 module.exports = { runShell };

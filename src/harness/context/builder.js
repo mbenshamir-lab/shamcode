@@ -9,6 +9,46 @@ const { symbolSummary } = require('./symbols');
 const { trimToBudget }  = require('./trimmer');
 const { MAX_CONTEXT_CHARS: DEFAULT_BUDGET } = require('../../shared/constants');
 
+const RAG_CANDIDATES      = 80; // de quoi remplir le budget même avec de très courts extraits
+const RAG_TOP_DIRECT      = 5;  // meilleurs extraits, servis avant ceux du graphe de dépendances
+const MAX_CHUNKS_PER_FILE = 2;  // au-delà, un même fichier évince les autres pistes
+
+/**
+ * Choisit les extraits jusqu'à remplir le budget. Un nombre fixe d'extraits laissait le
+ * budget à moitié vide depuis que le découpage sémantique produit des chunks courts.
+ * On vise le budget total : c'est le trimmer qui arbitre entre sections, coupe l'excédent
+ * et le signale au modèle.
+ *
+ * @param {{ path, content, score, dep_expanded? }[]} chunks  classés par pertinence
+ * @param {number} maxChars
+ * @returns {object[]}
+ */
+function _selectChunks(chunks, maxChars) {
+  const direct = chunks.filter(c => c.score > 0 && !c.dep_expanded);
+  const deps   = chunks.filter(c => c.dep_expanded);
+  const ranked = [...direct.slice(0, RAG_TOP_DIRECT), ...deps, ...direct.slice(RAG_TOP_DIRECT)];
+
+  const perFile = new Map();
+  const selected = [];
+  let used = 0;
+  const take = (chunk) => {
+    perFile.set(chunk.path, (perFile.get(chunk.path) || 0) + 1);
+    selected.push(chunk);
+    used += chunk.content.length;
+  };
+
+  for (const chunk of ranked) {
+    if (used >= maxChars) break;
+    if ((perFile.get(chunk.path) || 0) < MAX_CHUNKS_PER_FILE) take(chunk);
+  }
+  // Budget encore libre (petit projet) : la diversité n'a plus rien à protéger
+  for (const chunk of ranked) {
+    if (used >= maxChars) break;
+    if (!selected.includes(chunk)) take(chunk);
+  }
+  return selected;
+}
+
 /**
  * Construit le contexte à injecter dans le prompt.
  *
@@ -21,7 +61,7 @@ const { MAX_CONTEXT_CHARS: DEFAULT_BUDGET } = require('../../shared/constants');
  * }} opts
  * @returns {string}  Bloc de contexte prêt à être inséré dans le prompt
  */
-async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET, topK = 5 }) {
+async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars = DEFAULT_BUDGET, topK, fillBudget = false }) {
   const parts = [];
 
   // 1. Arborescence du projet
@@ -67,7 +107,15 @@ async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars 
   if (ragStore) {
     try {
       const { retrieveRelevant } = require('../rag/retrieve');
-      const chunks = await retrieveRelevant(ragStore, task, { topK, projectRoot });
+      // Candidats larges puis sélection au budget. `fillBudget` (cloud) laisse le budget
+      // décider ; sinon `topK` plafonne, pour garder court le prompt des moteurs locaux.
+      const selected = _selectChunks(
+        await retrieveRelevant(ragStore, task, { topK: RAG_CANDIDATES, projectRoot }),
+        maxChars,
+      );
+      const chunks = !fillBudget && Number.isFinite(topK) && topK > 0
+        ? selected.slice(0, topK)
+        : selected;
       if (chunks.length > 0) {
         const ragText = chunks.map(c =>
           `### ${c.path} (lignes ${c.startLine}-${c.endLine})\n\`\`\`\n${c.content}\n\`\`\``,

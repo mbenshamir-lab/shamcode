@@ -50,11 +50,15 @@ function _extractAllToolCalls(text) {
       j++;
     }
     if (depth !== 0) break;
-    const chunk = text.slice(start, j + 1).replace(/,(\s*[}\]])/g, '$1');
-    try {
-      const obj = JSON.parse(chunk);
-      if (obj && typeof obj.tool === 'string' && obj.args !== undefined) calls.push(obj);
-    } catch { /* JSON invalide — ignoré */ }
+    const chunk = text.slice(start, j + 1);
+    // Strict d'abord : la réparation ne doit pas toucher un `content` déjà valide
+    for (const candidate of [chunk, chunk.replace(/,(\s*[}\]])/g, '$1')]) {
+      try {
+        const obj = JSON.parse(candidate);
+        if (obj && typeof obj.tool === 'string' && obj.args !== undefined) calls.push(obj);
+        break;
+      } catch { /* JSON invalide — ignoré */ }
+    }
     i = j + 1;
   }
   return calls;
@@ -100,7 +104,8 @@ async function fixLoop(args, guard, projectRoot, config) {
 
   for (let iter = 1; iter <= maxIter; iter++) {
     // ── 1. Lancer les tests ──────────────────────────────────────────────────
-    const testResult = await runTests(testCmd, projectRoot);
+    const testResult = await runTests(testCmd, projectRoot, { signal: config._signal });
+    if (testResult.error === 'ANNULÉ') return { ok: false, error: 'ANNULÉ', history };
 
     if (testResult.exitCode === 0) {
       return { ok: true, fixed: iter > 1, iterations: iter - 1, history };
@@ -151,7 +156,7 @@ async function fixLoop(args, guard, projectRoot, config) {
   }
 
   // ── Dernière vérification après épuisement des itérations ────────────────
-  const finalTest = await runTests(testCmd, projectRoot);
+  const finalTest = await runTests(testCmd, projectRoot, { signal: config._signal });
   const allPassed = finalTest.exitCode === 0;
   return {
     ok:         allPassed,
