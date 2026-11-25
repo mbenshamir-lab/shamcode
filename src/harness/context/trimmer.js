@@ -8,14 +8,15 @@
  * lui-même en laissant 69 % du budget inutilisé. Le modèle recevait donc soit un
  * contexte amputé, soit un contexte vide, sans jamais savoir qu'il manquait quelque chose.
  *
- * Parts : rag 70 % (le contenu le plus utile par caractère), tree 30 % (navigation),
- * symbols 15 %. Le budget restant est consommé dans l'ordre, jamais dépassé.
+ * Parts : rag 65 % (le contenu le plus utile par caractère), map 20 % (structure),
+ * tree 15 % (navigation), symbols 15 %. Le budget restant est consommé dans l'ordre, jamais
+ * dépassé, et ce qu'une section n'utilise pas revient aux autres.
  */
 
 const { MAX_CONTEXT_CHARS } = require('../../shared/constants');
 
-const ORDER = ['rag', 'tree', 'symbols', 'notes'];
-const SHARE = { rag: 0.70, tree: 0.30, symbols: 0.15, notes: 0.10 };
+const ORDER = ['rag', 'map', 'tree', 'symbols', 'notes'];
+const SHARE = { rag: 0.65, map: 0.20, tree: 0.15, symbols: 0.15, notes: 0.10 };
 const MIN_USEFUL = 80;      // sous cette taille, un marqueur mange tout le contenu
 const MARKER_RESERVE = 70;  // place réservée au marqueur de troncature
 

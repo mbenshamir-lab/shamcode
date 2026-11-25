@@ -6,6 +6,7 @@
 const path = require('path');
 const { buildTree }     = require('./tree');
 const { symbolSummary } = require('./symbols');
+const { buildCodeMap }  = require('./codemap');
 const { trimToBudget }  = require('./trimmer');
 const { MAX_CONTEXT_CHARS: DEFAULT_BUDGET } = require('../../shared/constants');
 
@@ -73,6 +74,11 @@ async function buildContext({ task, projectRoot, ragStore, targetFile, maxChars 
     ? `## Arborescence du projet\n\`\`\`\n${tree}\n\`\`\`\n\n⚠️ PROJET VIDE : Aucun fichier présent sur le disque. Ne pas inventer de fichiers ou de stack technique.`
     : `## Arborescence du projet\n\`\`\`\n${tree}\n\`\`\``;
   parts.push({ type: 'tree', content: treeNote });
+
+  try {
+    const map = buildCodeMap(projectRoot);
+    if (map) parts.push({ type: 'map', content: map });
+  } catch { /* carte non disponible — ignorée */ }
 
   // 2. Symboles + graphe de dépendances du fichier cible (si spécifié)
   if (targetFile) {

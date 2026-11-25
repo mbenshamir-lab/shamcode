@@ -13,6 +13,7 @@
  */
 
 const { DEFAULT_BUDGET } = require('./builder');
+const { MAX_RESULT_CHARS } = require('../../shared/constants');
 
 const LOCAL_ENGINES = new Set(['webllm', 'cpu']);
 
@@ -21,6 +22,10 @@ const SMALL_MODEL = /(^|[^0-9])(?:1b|1\.5b|3b)(?![0-9])/i;
 
 const SMALL_BUDGET  = 4000;
 const MEDIUM_BUDGET = 8000;
+
+// ~600 lignes : la consigne « lis le fichier entier » devient tenable sur un modèle cloud,
+// dont la fenêtre se compte en centaines de milliers de tokens.
+const CLOUD_RESULT_CHARS = 24000;
 
 /**
  * @param {string} model nom du modèle (ex. « Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC »)
@@ -49,4 +54,14 @@ function resolveContextBudget({ engine, model, maxContextChars } = {}) {
   return Number(maxContextChars) || DEFAULT_BUDGET;
 }
 
-module.exports = { resolveContextBudget, isLocalEngine, isSmallModel, SMALL_BUDGET, MEDIUM_BUDGET };
+/**
+ * Taille maximale d'un résultat d'outil réinjecté au modèle.
+ * @param {{ engine?: string, explicit?: number }} opts
+ * @returns {number} limite en caractères
+ */
+function resolveResultLimit({ engine, explicit } = {}) {
+  if (Number(explicit) > 0) return Number(explicit);
+  return engine && !isLocalEngine(engine) ? CLOUD_RESULT_CHARS : MAX_RESULT_CHARS;
+}
+
+module.exports = { resolveContextBudget, resolveResultLimit, isLocalEngine, isSmallModel, SMALL_BUDGET, MEDIUM_BUDGET, CLOUD_RESULT_CHARS };

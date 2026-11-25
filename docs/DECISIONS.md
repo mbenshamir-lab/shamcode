@@ -327,3 +327,44 @@
 `agent.js` applique la politique (profil, `topK` du RAG, taille AGENTS, fenêtre, `maxTokens`), tronque les descriptions d'outils à 220 caractères **uniquement en local** (`config.compactTools:false` pour revenir en arrière). `CpuEngine` garde une session `LlamaChatSession` persistante : le cache KV n'est réutilisé que si le prompt système est identique et que l'historique connu est un préfixe exact ; sinon la session est recréée. Réglages CPU : contexte 4 096, KV `Q8_0`, flash attention, batch 256, `gpuLayers: 'auto'` (Vulkan/CUDA), threads `cpus−1` plafonné à 8 (`config.cpuThreads`).
 **Conséquences** : prompt local 3B **18 289 → 12 859 car. (−30 %, ~4 573 → 3 215 tokens)**, local 7B −29 % ; cloud inchangé. Benchmark reproductible `npm run bench:prompt`. Tests : `tests/model-policy.test.js` (6) + 3 tests de session CPU ; 1 405/1 405.
 **Alternatives rejetées** : réduire le prompt globalement (dégrade le cloud) ; garder une session CPU inconditionnelle (historique divergent → réponses fausses) ; KV cache q4 (gain mémoire mais perte de qualité mesurable sur petits modèles) ; streaming WebLLM et chargement paresseux du moteur local — reportés en phase 2 (nécessitent un canal IPC de tokens et une politique de warm-up, non testables sans GPU ici).
+
+---
+
+## ADR-034 : Isolation de l'exécution — environnement filtré et approbation des commandes
+
+**Date** : 2026-11-01
+**Contexte** : les commandes héritaient de tout `process.env` : le code lancé par `run_tests` ou `run_shell` pouvait lire les clés API de l'environnement. La liste noire du shell se contourne facilement.
+**Décision** : `run-command.js` retire de l'environnement des commandes les variables nommées comme des secrets, et `start_process` applique le même filtre. Quand le mode d'approbation est actif, `run_shell` et `start_process` demandent une validation, sauf pour une courte liste de commandes de lecture ou de test sans chaînage.
+**Conséquences** : un test qui lit un secret dans l'environnement ne le trouve plus. `deploy` garde l'environnement complet : déployer exige des jetons, et l'outil est déjà derrière `enableDeploy`. En mode Action, aucune approbation : c'est le choix explicite de l'utilisateur. Ce n'est pas un bac à sable : le code exécuté garde les droits de l'utilisateur.
+**Alternatives rejetées** : bac à sable Docker dès maintenant (tous les postes Windows ne l'ont pas, décision reportée après mesure) ; liste blanche seule (trop de faux refus sur un projet réel).
+
+---
+
+## ADR-035 : Compaction par paliers
+
+**Date** : 2026-11-01
+**Contexte** : la fenêtre glissante réécrivait le début de l'historique à chaque étape au-delà de 26 messages. Cela annulait le cache des messages, et sur les modèles Claude récents, modifier l'historique invalide les blocs de réflexion.
+**Décision** : l'historique est compacté d'un coup à un seuil, puis reste identique, en ajout seul, jusqu'au palier suivant. La note de compaction est figée pour la durée du palier. Chaque palier conserve la moitié de `windowKeepPairs`, sinon le seuil serait de nouveau atteint deux étapes plus tard. L'état déterministe (ADR-020) reste la base de la note. Le moteur Claude marque le dernier message comme point de cache.
+**Conséquences** : le début de la requête reste stable entre deux paliers. Après un palier, le modèle voit moins de messages récents qu'avant ; l'état de tâche et le compteur d'étapes compensent.
+**Alternatives rejetées** : résumé par le modèle dès maintenant (un appel de plus à chaque palier, à ajouter seulement si la mesure le justifie) ; relever seulement le seuil (contexte plus lourd à chaque étape).
+
+---
+
+## ADR-036 : Carte du code dans le contexte
+
+**Date** : 2026-11-01
+**Contexte** : l'agent recevait une arborescence et des extraits, mais pas la structure du projet : il ignorait quels fichiers sont centraux et ce qu'ils exposent.
+**Décision** : `context/codemap.js` produit une carte compacte : fichiers les plus importés d'abord, avec leurs fonctions et classes publiques. Elle réutilise `depgraph.js` et `symbols.js`, sans nouvelle dépendance. Elle reçoit 20 % du budget, pris surtout sur l'arborescence, en partie redondante : les parts passent à rag 65 %, map 20 %, tree 15 %. Mesuré sur 10 requêtes : à 55 % de RAG, les extraits perdaient 2 fichiers attendus sur 13 ; à 65 %, ils n'en perdent aucun.
+**Conséquences** : arborescence plus courte quand le budget est plein. Sur ces 10 requêtes, 12 fichiers attendus sur 13 sont présents dans le contexte, contre 8 avec les extraits seuls. Langages couverts : ceux du graphe de dépendances (JS, TS, Python, Rust) ; regex, donc pas de précision de compilateur.
+**Alternatives rejetées** : tree-sitter (binaires natifs à empaqueter) ; embeddings pour cette fonction (ils servent la recherche, pas la structure).
+
+---
+
+## ADR-037 : Tool calling natif sur les moteurs cloud (décidé, non implémenté)
+
+**Date** : 2026-11-01
+**Contexte** : le JSON dans le texte impose un appel par réponse, un parser tolérant et des relances sur erreur de format, ce qui coûte des étapes et des tokens.
+**Décision** : option B : format interne `{ text, toolCalls }`, converti par chaque moteur. D'abord un appel à la fois, puis des lectures en parallèle, les écritures restant séquentielles. Le JSON texte reste pour les moteurs locaux. Le champ `intent` affiché par l'interface est conservé. Implémentation après fusion de la PR n°1 et chantiers ADR-034 à 031.
+**Conséquences** : change le contrat de `llmGenerate`. Les schémas doivent être complétés : 27 existent pour le serveur MCP, sur plus de 70 outils.
+**Alternatives rejetées** : traduire les appels natifs vers le JSON actuel (l'historique rejoué ne contiendrait pas de vrais appels, pas de parallélisme) ; basculer tout le projet (impossible pour WebLLM).
+**Reporté** : embeddings multilingues (révision d'ADR-009) et bac à sable fort, à décider après une mesure sur gros dépôt.

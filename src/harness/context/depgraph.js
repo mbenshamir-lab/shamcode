@@ -17,10 +17,12 @@ const path   = require('path');
 const crypto = require('crypto');
 const { getIgnore } = require('../safety/harnessignore');
 
-const GRAPH_VERSION  = 2;
+const GRAPH_VERSION  = 3;
 const MAX_FILES      = 2000;
 const SUPPORTED_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.py', '.rs']);
 const TRY_EXTS       = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'];
+// .claude peut contenir des worktrees : une copie entière du projet à ne pas compter
+const SKIPPED_DIRS   = new Set(['.harness', '.git', '.claude', 'node_modules']);
 
 // ── Import extraction (relatifs uniquement) ───────────────────────────────────
 
@@ -99,7 +101,7 @@ function _walkFiles(projectRoot) {
       const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
 
       if (entry.isDirectory()) {
-        if (relPath === '.harness' || relPath === '.git') continue;
+        if (SKIPPED_DIRS.has(entry.name)) continue;
         if (ignore && ignore.isIgnored(relPath + '/')) continue;
         _walk(relPath);
       } else if (entry.isFile()) {
@@ -154,7 +156,10 @@ function _sha1(content) {
  *   deps       : { 'src/a.js': ['src/b.js'] }
  *   dependents : { 'src/b.js': ['src/a.js'] }
  */
-function buildDepGraph(projectRoot) {
+function buildDepGraph(rawRoot) {
+  // Sous Windows, une racine écrite avec des / ferait échouer la comparaison de préfixe
+  // de _resolveImport : tous les imports seraient perdus, puis figés dans le cache.
+  const projectRoot = path.resolve(rawRoot);
   const graph = _loadGraph(projectRoot);
   const files = _walkFiles(projectRoot);
   const nowKeys = new Set();

@@ -3203,7 +3203,7 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
   }
 
   function _appendApprovalCard(event) {
-    const { id, path: filePath, patch, stats, isDelete = false, isMove = false, dest = '' } = event;
+    const { id, path: filePath, patch, stats, isDelete = false, isMove = false, isCommand = false, dest = '' } = event;
     const { additions = 0, deletions = 0 } = stats || {};
 
     const card = document.createElement('div');
@@ -3212,7 +3212,7 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
 
     const header = document.createElement('div');
     header.className = 'approval-header';
-    const actionLabel = isDelete ? 'Suppression en attente' : isMove ? `Déplacement en attente → ${dest}` : 'Modification en attente';
+    const actionLabel = isCommand ? 'Exécution en attente' : isDelete ? 'Suppression en attente' : isMove ? `Déplacement en attente → ${dest}` : 'Modification en attente';
     const icon        = isDelete ? '🗑' : isMove ? '📁' : '⚠';
     header.innerHTML = `
       <span class="approval-icon">${icon}</span>

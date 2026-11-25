@@ -29,8 +29,9 @@ const { createScratchpad }  = require('./memory/scratchpad');
 const {
   MAX_STEPS, MAX_CONTEXT_CHARS, DEFAULT_TEMPERATURE, MAX_RETRIES_PER_STEP, TOOLS,
   SESSIONS_RETENTION, TDD_PHASES,
-  MAX_RESULT_CHARS = 6000, WINDOW_KEEP_PAIRS = 10, WINDOW_THRESHOLD = 26,
+  MAX_RESULT_CHARS = 6000, WINDOW_KEEP_PAIRS = 10, WINDOW_THRESHOLD = 26, MAX_TASK_TOKENS = 500000,
 } = require('../shared/constants');
+const { resolveResultLimit } = require('./context/budget');
 const { disposeBrowser }    = require('./tools/browser');
 const { _detectRunner, _keepEnds } = require('./tools/test-runner');
 const { disposeLsp }        = require('./tools/lsp');
@@ -110,19 +111,26 @@ function _buildTaskContent(task, images) {
 }
 
 /** Tronque un résultat d'outil trop long pour ne pas saturer le contexte. */
-function _truncateResult(result) {
+function _truncateResult(result, limit = MAX_RESULT_CHARS) {
   const s = typeof result === 'string' ? result : JSON.stringify(result);
-  if (s.length <= MAX_RESULT_CHARS) return result;
-  const kept = s.slice(0, MAX_RESULT_CHARS);
-  const omitted = s.length - MAX_RESULT_CHARS;
+  if (s.length <= limit) return result;
+  const kept = s.slice(0, limit);
+  const omitted = s.length - limit;
   return kept + `\n[… tronqué — ${omitted} caractères omis]`;
 }
+
+// Une répétition à l'identique (même appel, même résultat) n'apprend rien au modèle : il
+// est averti, puis arrêté. L'arrêt laisse de la marge, un modèle peut se corriger après l'avis.
+const LOOP_WARN_AT = 3;
+const LOOP_STOP_AT = 8;
+// Attendre qu'un serveur démarre répète légitimement le même appel
+const POLLING_TOOLS = new Set([TOOLS.GET_OUTPUT, TOOLS.CHECK_SERVICE, TOOLS.BROWSER_WAIT, TOOLS.LIST_PROCESSES, TOOLS.READ_MESSAGES]);
 
 /**
  * Message d'échec d'un outil. Le code d'erreur seul ne dit pas quoi corriger : la sortie
  * des tests, le hint de replace_code ou le détail des sous-agents doivent atteindre le modèle.
  */
-function _failureMessage(result) {
+function _failureMessage(result, limit = MAX_RESULT_CHARS) {
   const { ok: _ok, error, hint, stdout, ...rest } = result;
   const details = [
     hint,
@@ -130,7 +138,7 @@ function _failureMessage(result) {
     Object.keys(rest).length > 0 && JSON.stringify(rest),
   ].filter(Boolean).join('\n\n');
   const message = `Erreur outil : ${error}`;
-  return details ? `${message}\n\n${_keepEnds(details, MAX_RESULT_CHARS)}` : message;
+  return details ? `${message}\n\n${_keepEnds(details, limit)}` : message;
 }
 
 /**
@@ -157,15 +165,6 @@ function _windowMessages(messages, stateBlock = '', opts = {}) {
   return [...head, note, ...tail];
 }
 
-/** Index de la première paire tail dans messages (1-based en étapes) lorsque la fenêtre est active. */
-function _windowTailStart(msgCount, opts = {}) {
-  const keepPairs = opts.keepPairs ?? WINDOW_KEEP_PAIRS;
-  const threshold = opts.threshold ?? WINDOW_THRESHOLD;
-  if (msgCount <= threshold) return 0;
-  // Chaque étape produit 2 messages (assistant + user), donc on divise par 2
-  return Math.max(0, (msgCount - 2 - keepPairs * 2) / 2);
-}
-
 async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent = () => {}, signal = null }) {
   const maxSteps = config.maxSteps ?? MAX_STEPS;
   // Politique selon le moteur : le cloud garde le prompt complet, un modèle local
@@ -181,6 +180,10 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     keepPairs: config.windowKeepPairs ?? modelPolicy.historyKeepPairs,
     threshold: config.windowThreshold,
   };
+  const resultLimit = resolveResultLimit({ engine: config.model?.primary, explicit: config.maxResultChars });
+  const maxTaskTokens = config.maxTaskTokens ?? MAX_TASK_TOKENS;
+  // Objet partagé : les sous-agents héritent de config et consomment le même budget
+  config._taskTokens ??= { used: 0 };
   const guard    = makeGuard(projectRoot);
 
   // Les sous-agents ne créent pas de session propre — ils s'exécutent dans le contexte du parent.
@@ -485,8 +488,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   // Cache intra-session : évite de réinjecter le contenu d'un fichier déjà lu.
   // La clé inclut la plage de lignes : sans elle, une relecture paginée du même fichier
   // renverrait « déjà lu » et la fin d'un fichier tronqué resterait inaccessible.
-  // Valeur : { step, hash } — le hash détecte les modifications faites hors des outils
-  // d'écriture (shell, formateur, sous-agent, utilisateur).
+  // Valeur : { step, hash, index } — le hash détecte les modifications faites hors des
+  // outils d'écriture (shell, formateur, sous-agent, utilisateur) ; index situe le message
+  // portant le contenu, pour savoir s'il a survécu à la compaction.
   const _readCache = new Map();
   const _readCacheKey = (args) => `${args.path}|${args.start_line ?? ''}|${args.end_line ?? ''}`;
   const _invalidateReadCache = (filePath) => {
@@ -554,9 +558,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _normPath(e.args?.path) === target ||
       (e.tool === TOOLS.MOVE_FILE && _normPath(e.args?.dest) === target)).pop();
     if (!last) return false;
-    // Un fichier supprimé ou déplacé ne peut plus être relu à ce chemin
-    if (last.tool === TOOLS.DELETE_FILE) return true;
-    if (last.tool === TOOLS.MOVE_FILE && _normPath(last.args?.path) === target) return true;
+    // Suppression : plus rien à relire. Déplacement : le contenu n'a pas changé.
+    if (last.tool === TOOLS.DELETE_FILE || last.tool === TOOLS.MOVE_FILE) return true;
     return trace.some(e => e.tool === TOOLS.READ_FILE && e.result?.ok && e.step > last.step &&
       _normPath(e.args?.path) === target);
   };
@@ -599,12 +602,14 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       return { ok: false, reason: 'une vérification est incomplète (kind + path ou command attendus)' };
     }
 
-    const coversFile = checks.some(c => c.kind === 'file' && _fileProven(c.path));
+    // Un test passé couvre tout. Sinon chaque fichier modifié doit avoir été relu : en
+    // vérifier un seul sur cinq ne dit rien des quatre autres.
     const passedTest = checks.some(c => c.kind === 'test' && String(c.result || '').toLowerCase() === 'pass' && _testProven(c));
-    if (!coversFile && !passedTest) {
+    const unread = modified.filter(file => !_fileProven(file));
+    if (!passedTest && unread.length > 0) {
       return {
         ok: false,
-        reason: `aucune vérification déclarée n'a eu lieu après la dernière modification (${modified.slice(0, 3).join(', ')}) : relis ces fichiers avec read_file ou lance run_tests, puis déclare-le`,
+        reason: `aucune vérification n'a eu lieu après la dernière modification de ${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ` (+${unread.length - 3})` : ''} : relis ces fichiers avec read_file ou lance run_tests, puis déclare-le`,
       };
     }
     return { ok: true };
@@ -628,11 +633,44 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       allowIncomplete: fresh.status === 'done',
     });
   };
+
+  // ── Compaction par paliers (ADR-035) ───────────────────────────────────────
+  // { from, note } : messages omis avant `from`, note figée jusqu'au palier suivant. Entre
+  // deux paliers, l'historique envoyé ne fait que s'allonger : le début de la requête reste
+  // identique, condition du cache et de la validité des blocs de réflexion.
+  let _compaction = null;
+
+  const _compactedMessages = () => {
+    const threshold = windowOpts.threshold ?? WINDOW_THRESHOLD;
+    // Moitié seulement : en gardant keepPairs entières, le seuil reviendrait deux étapes plus tard
+    const keepPairs = Math.ceil((windowOpts.keepPairs ?? WINDOW_KEEP_PAIRS) / 2);
+    const visible = () => (_compaction
+      ? [messages[0], messages[1], _compaction.note, ...messages.slice(_compaction.from)]
+      : messages);
+
+    if (visible().length > threshold) {
+      const window = _windowMessages(messages, _compactState(), { keepPairs, threshold: 0 });
+      _compaction = { from: messages.length - keepPairs * 2, note: window[2] };
+    }
+    return visible();
+  };
+
   // Compteur de tokens cumulés sur la session
   let _sessionIn  = 0;
   let _sessionOut = 0;
   // Le moteur a coupé la dernière réponse à sa limite de tokens
   let _lastResponseCut = false;
+  let _budgetWarned = false;
+  let _repeat = { signature: '', count: 0 }; // dernier appel et nombre de répétitions identiques
+
+  /** Termine la tâche sur un échec décidé par le harness, en le signalant à l'utilisateur. */
+  const _stopRun = (error, message) => {
+    onEvent({ type: 'note_user', level: 'error', message });
+    _cleanup();
+    const stopped = { ok: false, error, trace, sessionId: session.id };
+    if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: stopped, scratchpad: scratchpad.toJSON() });
+    return stopped;
+  };
 
   /** Consigne de reprise après une réponse illisible. */
   const _formatFeedback = (error) => (_lastResponseCut
@@ -658,6 +696,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _sessionIn  += usage.inputTokens  || 0;
       _sessionOut += usage.outputTokens || 0;
       _lastResponseCut = !!usage.truncated;
+      // Les tokens lus en cache coûtent une fraction du tarif : ils n'entament pas le budget
+      config._taskTokens.used += (usage.inputTokens || 0) - (usage.cachedTokens || 0) + (usage.outputTokens || 0);
       onEvent({ type: 'llm_usage', step: currentStep,
         inputTokens: usage.inputTokens  || 0,
         outputTokens: usage.outputTokens || 0,
@@ -666,7 +706,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         totalIn: _sessionIn, totalOut: _sessionOut,
       });
     };
-    const windowed = _windowMessages(messages, _compactState(), windowOpts);
+    const windowed = _compactedMessages();
     // L'agent « réfléchit » : l'UI affiche une animation dédiée pendant la génération
     onEvent({ type: 'thinking', step: currentStep });
     // Consommation de la mémoire contextuelle (estimation fiable même sans usage API)
@@ -700,6 +740,11 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       logger.event(session.id, 'run_aborted', { steps: trace.length });
       onEvent({ type: 'cancelled' });
       return cancelled;
+    }
+
+    // ── Plafond de coût ──────────────────────────────────────────────────────
+    if (maxTaskTokens > 0 && config._taskTokens.used >= maxTaskTokens) {
+      return _stopRun('PLAFOND_TOKENS_ATTEINT', `Tâche arrêtée : plafond de ${maxTaskTokens} tokens atteint.`);
     }
 
     // ── Génération (avec reprises sur JSON invalide) ────────────────────────
@@ -858,11 +903,11 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           const cacheKey  = _readCacheKey(parsed.args);
           const cached    = _readCache.get(cacheKey);
           const hash      = crypto.createHash('sha1').update(String(result.content)).digest('hex');
-          const tailStart = _windowTailStart(messages.length, windowOpts); // étape à partir de laquelle la tail commence
-          if (cached && cached.hash === hash && cached.step > tailStart) {
+          const visibleFrom = _compaction?.from ?? 0;
+          if (cached && cached.hash === hash && cached.index >= visibleFrom) {
             result = { ok: true, content: `[déjà lu à l'étape ${cached.step} — contenu identique]` };
           } else {
-            _readCache.set(cacheKey, { step, hash });
+            _readCache.set(cacheKey, { step, hash, index: messages.length });
           }
         }
         // État de tâche : une lecture compte, et vaut vérification si le fichier a été modifié
@@ -923,22 +968,22 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     let resultForContext;
     if (result.ok) {
       if (result.content != null) {
-        resultForContext = { ...result, content: _truncateResult(result.content) };
+        resultForContext = { ...result, content: _truncateResult(result.content, resultLimit) };
         // Sans cette consigne, le modèle conclut que la fin du fichier n'existe pas
         if (parsed.tool === TOOLS.READ_FILE && resultForContext.content !== result.content) {
-          const shownLines = String(result.content).slice(0, MAX_RESULT_CHARS).split('\n').length;
+          const shownLines = String(result.content).slice(0, resultLimit).split('\n').length;
           const header = result.start_line != null ? 1 : 0; // ligne « [Lignes x–y] »
           const next = (result.start_line ?? 1) + shownLines - 1 - header;
           resultForContext.content += `\nPour lire la suite : read_file avec "start_line": ${next} (${result.total_lines} lignes au total).`;
         }
       } else if (typeof result.stdout === 'string') {
         // Un lanceur écrit son bilan et ses échecs à la fin : couper au milieu, pas à la fin
-        resultForContext = { ...result, stdout: _keepEnds(result.stdout, MAX_RESULT_CHARS) };
+        resultForContext = { ...result, stdout: _keepEnds(result.stdout, resultLimit) };
       } else {
         const serialized = JSON.stringify(result);
-        if (serialized.length > MAX_RESULT_CHARS) {
-          const kept    = serialized.slice(0, MAX_RESULT_CHARS);
-          const omitted = serialized.length - MAX_RESULT_CHARS;
+        if (serialized.length > resultLimit) {
+          const kept    = serialized.slice(0, resultLimit);
+          const omitted = serialized.length - resultLimit;
           resultForContext = `${kept}\n[… tronqué — ${omitted} caractères omis]`;
         } else {
           resultForContext = result;
@@ -961,7 +1006,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     const remaining = maxSteps - step;
     let resultMsg = result.ok
       ? `Résultat : ${typeof resultForContext === 'string' ? resultForContext : JSON.stringify(resultForContext)}`
-      : _failureMessage(result);
+      : _failureMessage(result, resultLimit);
 
     // L'objectif vient de changer : rappeler le bloc pour que le petit modèle
     // n'oublie pas les critères restants (create/close/block/plan uniquement).
@@ -1023,6 +1068,30 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (!result.ok && typeof result.error === 'string' &&
         result.error.includes('BLOC_INTROUVABLE') && parsed.args?.path) {
       resultMsg += `\n\n→ Relis le fichier entier avec read_file { "path": "${parsed.args.path}" }, puis copie le bloc exact avant de retenter replace_code.`;
+    }
+
+    // Détection de boucle : le résultat compte, relancer un test après une correction n'en
+    // est pas une, puisque sa sortie change.
+    if (POLLING_TOOLS.has(parsed.tool)) {
+      _repeat = { signature: '', count: 0 };
+    } else {
+      const signature = crypto.createHash('sha1')
+        .update(JSON.stringify([parsed.tool, parsed.args, result]))
+        .digest('hex');
+      _repeat = { signature, count: signature === _repeat.signature ? _repeat.count + 1 : 1 };
+      if (_repeat.count >= LOOP_STOP_AT) {
+        return _stopRun('BOUCLE_DÉTECTÉE', `Tâche arrêtée : ${parsed.tool} a été répété ${_repeat.count} fois sans aucun changement.`);
+      }
+      if (_repeat.count === LOOP_WARN_AT) {
+        resultMsg += `\n\n⚠️ BOUCLE : ce même appel a donné ${LOOP_WARN_AT} fois le même résultat. Le répéter ne changera rien : change d'approche, ou appelle finish en expliquant ce qui bloque.`;
+      }
+    }
+
+    // Plafond proche : laisser au modèle le temps de conclure plutôt que le couper net
+    if (!_budgetWarned && maxTaskTokens > 0 && config._taskTokens.used >= maxTaskTokens * 0.8) {
+      _budgetWarned = true;
+      onEvent({ type: 'note_user', level: 'warn', message: `80 % du plafond de ${maxTaskTokens} tokens est consommé.` });
+      resultMsg += '\n\n⚠️ BUDGET : le plafond de tokens est presque atteint. Termine ce qui est en cours et appelle finish.';
     }
 
     if (remaining <= 3) {

@@ -45,11 +45,11 @@ describe('Bug 3 — troncature des résultats sans content', () => {
   const MAX_RESULT_CHARS = 6000;
 
   // Extraire _truncateResult
-  const trMatch = agentSrc.match(/function _truncateResult\(result\) \{([\s\S]*?)\n\}/);
+  const trMatch = agentSrc.match(/function _truncateResult\(result, limit = MAX_RESULT_CHARS\) \{([\s\S]*?)\n\}/);
   assert.ok(trMatch, '_truncateResult introuvable');
 
   // eslint-disable-next-line no-new-func -- exécute la fonction extraite du source de agent.js
-  const trFn = new Function('result', trMatch[1] + '\nreturn result;');
+  const trFn = new Function('result', `const limit = ${MAX_RESULT_CHARS};${trMatch[1]}\nreturn result;`);
 
   // Reconstruire la logique du bloc resultForContext depuis le source
   const rcMatch = agentSrc.match(
@@ -59,10 +59,11 @@ describe('Bug 3 — troncature des résultats sans content', () => {
 
   const rcCode = `
     const MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
+    const resultLimit = MAX_RESULT_CHARS;
     const TOOLS = { READ_FILE: 'read_file' };
     const parsed = { tool: 'autre' };
     const _keepEnds = (text) => text;
-    function _truncateResult(result) { ${trMatch[1]}
+    function _truncateResult(result, limit = MAX_RESULT_CHARS) { ${trMatch[1]}
       return result;
     }
     let result = _result;

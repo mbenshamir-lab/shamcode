@@ -94,6 +94,13 @@ describe('exécution', () => {
     assert.equal(report.runs[0].success, true, JSON.stringify(report.runs[0].checks));
   });
 
+  it('une tâche de lecture réussie n\'est pas pénalisée par les fichiers du harness', async () => {
+    const def = TASKS.find(t => t.id === 'read-locate');
+    const answer = { tool: 'finish', args: { summary: 'src/inventory.js, fonction reserve' } };
+    const report = await bench(async () => JSON.stringify(answer), { tasks: [def] });
+    assert.equal(report.runs[0].success, true, JSON.stringify(report.runs[0].checks));
+  });
+
   it('refuse un argument inconnu', () => {
     assert.throws(() => parseArgs(['--clef=x']), /ARGUMENT_INCONNU/);
   });
