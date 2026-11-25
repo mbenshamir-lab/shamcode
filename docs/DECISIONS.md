@@ -378,3 +378,13 @@
 **Décision** : `agent.js` relit lui-même le fichier écrit (`_attestWrite` : sha1 tronqué + nombre de lignes, via `makeGuard`), le consigne dans l'entrée de trace (`entry.verified`) et l'annonce dans le résultat (« vérification serveur »). `_fileProven` accepte cette attestation ; `finish` sans `checks` est accepté si tous les fichiers modifiés sont attestés. Un test déclaré « pass » mais non lancé après la dernière modification reste refusé. La consigne « VÉRIFICATION OBLIGATOIRE » et les règles correspondantes du prompt sont retirées.
 **Conséquences** : une étape de moins par fichier écrit, plus de refus de `finish` pour oubli de déclaration. La preuve ne dépend plus d'une déclaration du modèle. Les écritures hors outils suivis (shell) ne sont pas attestées.
 **Alternatives rejetées** : lots d'appels (change le contrat du parser, risqué sous 3B) ; lecture multi-fichiers (option B, reportée).
+
+---
+
+## ADR-039 : Détecteur de stagnation et compteurs d'appels LLM
+
+**Date** : 2026-11-25
+**Contexte** : la détection de boucle ne reconnaissait que des appels strictement identiques. Mesure (`scripts/sim-boucles.js`, modèle scripté) : un échec à arguments variables, un cycle A/B ou des recherches vaines consommaient les 50 étapes ; même l'appel identique attendait 8 tours. Proposition : `docs/PROPOSITION_STAGNATION.md`.
+**Décision** : dans `agent.js`, `_madeProgress` classe chaque étape : progrès = écriture réussie, test vert, fichier jamais lu, ou résultat jamais montré (empreinte sha1). Un échec n'est jamais un progrès. `STAGNATION_WARN_AT` = 5 étapes consécutives sans progrès : message correctif nommant le dernier échec ; `STAGNATION_STOP_AT` = 10 : arrêt `STAGNATION_DÉTECTÉE` listant les outils essayés. `plan`, `goal`, `ask_user`, `scratchpad` et les outils d'attente (`POLLING_TOOLS`) sont neutres. `LOOP_STOP_AT` passe de 8 à 5. Les événements `run_finish`, `run_aborted`, `run_max_steps` et le nouveau `run_stopped` portent `llm_calls` (générations, reprises de parse comprises) ; `run_stopped` porte aussi `stagnation_stops`.
+**Conséquences** : les quatre scénarios s'arrêtent en 5 à 14 appels au lieu de 8 à 50. Une exploration de fichiers neufs ou un travail qui écrit n'est jamais coupé. Limite : un résultat nouveau mais inutile (ex. recherches dont l'écho change) compte comme progrès ; la relecture d'un fichier après compaction compte une fois comme résultat neuf.
+**Alternatives rejetées** : seuils par nombre total d'étapes seulement (ne distingue pas travail et stagnation) ; option de configuration (non demandée).

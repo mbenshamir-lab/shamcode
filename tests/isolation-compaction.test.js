@@ -134,6 +134,8 @@ describe('compaction par paliers', () => {
       requests.push(messages.map(m => String(m.content)));
       n++;
       if (n > steps) return '{"tool":"finish","args":{"summary":"fin"}}';
+      // Le dossier change à chaque appel : sans progrès, la détection de stagnation couperait la tâche
+      fs.writeFileSync(path.join(dir, `f${n}.txt`), 'x');
       // Arguments variés : des appels identiques déclencheraient la détection de boucle
       return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: n } });
     } });
@@ -175,6 +177,7 @@ describe('compaction par paliers', () => {
     await runAgent({ task: 't', projectRoot: dir, config: { maxSteps: 20 }, llmGenerate: async (messages) => {
       last = messages.map(m => m.role);
       if (messages.some(m => String(m.content).includes('ÉTAT DE LA TÂCHE'))) n++;
+      fs.writeFileSync(path.join(dir, `f${step}.txt`), 'x'); // évite la stagnation
       return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: ++step } });
     } });
     assert.ok(n > 0, 'état présent');
@@ -191,6 +194,7 @@ describe('compaction par paliers', () => {
       n++;
       if (n === 1 || n === 20) return JSON.stringify({ tool: 'read_file', args: { path: 'a.js' } });
       if (n > 20) return '{"tool":"finish","args":{"summary":"fin"}}';
+      fs.writeFileSync(path.join(dir, `f${n}.txt`), 'x'); // évite la stagnation
       return JSON.stringify({ tool: 'list_dir', args: { path: '.', depth: n } });
     } });
     assert.ok(seen[20].includes('CONTENU_REEL'), seen[20].slice(0, 120));

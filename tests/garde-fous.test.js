@@ -62,14 +62,14 @@ describe('détection de boucle', () => {
   it('arrête la tâche si le modèle s\'entête', async () => {
     const { result, events, calls } = await run(() => same);
     assert.equal(result.error, 'BOUCLE_DÉTECTÉE');
-    assert.equal(calls, 8);
+    assert.equal(calls, 5);
     assert.ok(result.sessionId);
     assert.equal(notes(events, 'error').length, 1);
   });
 
   it('un changement d\'approche remet le compteur à zéro', async () => {
     const other = { tool: 'list_dir', args: { path: '.' } };
-    const { result } = await run(n => (n > 21 ? null : n % 3 === 0 ? other : same));
+    const { result } = await run(n => (n > 9 ? null : n % 3 === 0 ? other : same));
     assert.equal(result.ok, true);
   });
 

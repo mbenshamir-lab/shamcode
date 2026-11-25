@@ -122,8 +122,14 @@ function _truncateResult(result, limit = MAX_RESULT_CHARS) {
 // Une répétition à l'identique (même appel, même résultat) n'apprend rien au modèle : il
 // est averti, puis arrêté. L'arrêt laisse de la marge, un modèle peut se corriger après l'avis.
 const LOOP_WARN_AT = 3;
-const LOOP_STOP_AT = 8;
+const LOOP_STOP_AT = 5;
+// Répéter à l'identique n'est qu'une forme de stagnation : des échecs aux arguments variables,
+// un cycle A/B ou des recherches sans effet n'avancent pas non plus. On compte donc les étapes
+// consécutives sans progrès (écriture réussie, test vert, fichier ou résultat jamais vu).
+const STAGNATION_WARN_AT = 5;
+const STAGNATION_STOP_AT = 10;
 // Attendre qu'un serveur démarre répète légitimement le même appel
+const STAGNATION_NEUTRAL = new Set([TOOLS.PLAN, TOOLS.GOAL, TOOLS.ASK_USER, TOOLS.SCRATCHPAD_TOOL]);
 const POLLING_TOOLS = new Set([TOOLS.GET_OUTPUT, TOOLS.CHECK_SERVICE, TOOLS.BROWSER_WAIT, TOOLS.LIST_PROCESSES, TOOLS.READ_MESSAGES]);
 
 /**
@@ -696,9 +702,35 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   let _lastResponseCut = false;
   let _budgetWarned = false;
   let _repeat = { signature: '', count: 0 }; // dernier appel et nombre de répétitions identiques
+  let _stagnation = 0;                        // étapes consécutives sans progrès
+  const _seenResults = new Set();            // empreintes des résultats déjà montrés au modèle
+  const _readPaths   = new Set();            // fichiers déjà lus pendant ce run
+  let _llmCalls = 0;                          // générations LLM, reprises de parse comprises
+  let _stagnationStops = 0;
+
+  /**
+   * Cette étape a-t-elle fait avancer la tâche ? Un échec n'avance jamais ; un résultat déjà
+   * montré au modèle non plus (c'est ce qui rend un cycle A/B ou une recherche vaine visibles).
+   */
+  const _madeProgress = (call, res) => {
+    if (!res.ok) return false;
+    // L'empreinte est toujours enregistrée : sinon une première lecture, comptée comme
+    // progrès par son chemin, ferait passer pour neuve sa relecture après compaction.
+    const fingerprint = crypto.createHash('sha1').update(JSON.stringify(res)).digest('hex');
+    const unseen = !_seenResults.has(fingerprint);
+    _seenResults.add(fingerprint);
+    if (modTools.has(call.tool)) return true;
+    if ((call.tool === TOOLS.RUN_TESTS || call.tool === TOOLS.FIX_LOOP) && res.exitCode === 0) return true;
+    if (call.tool === TOOLS.READ_FILE && call.args?.path) {
+      const target = _normPath(call.args.path);
+      if (!_readPaths.has(target)) { _readPaths.add(target); return true; }
+    }
+    return unseen;
+  };
 
   /** Termine la tâche sur un échec décidé par le harness, en le signalant à l'utilisateur. */
   const _stopRun = (error, message) => {
+    logger.event(session.id, 'run_stopped', { error, steps: trace.length, llm_calls: _llmCalls, stagnation_stops: _stagnationStops });
     onEvent({ type: 'note_user', level: 'error', message });
     _cleanup();
     const stopped = { ok: false, error, trace, sessionId: session.id };
@@ -726,6 +758,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       ? undefined
       : (token) => onEvent({ type: 'llm_token', token });
     _lastResponseCut = false;
+    _llmCalls++;
     const onUsage = (usage) => {
       _sessionIn  += usage.inputTokens  || 0;
       _sessionOut += usage.outputTokens || 0;
@@ -771,7 +804,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _cleanup();
       const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
       if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
-      logger.event(session.id, 'run_aborted', { steps: trace.length });
+      logger.event(session.id, 'run_aborted', { steps: trace.length, llm_calls: _llmCalls });
       onEvent({ type: 'cancelled' });
       return cancelled;
     }
@@ -796,7 +829,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           _cleanup();
           const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
           if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
-          logger.event(session.id, 'run_aborted', { steps: trace.length });
+          logger.event(session.id, 'run_aborted', { steps: trace.length, llm_calls: _llmCalls });
           onEvent({ type: 'cancelled' });
           return cancelled;
         }
@@ -892,7 +925,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
 
       onEvent({ type: 'finish', summary });
-      logger.event(session.id, 'run_finish', { steps: trace.length, unverified: !proof.ok, goal: activeGoal?.status ?? null });
+      logger.event(session.id, 'run_finish', { steps: trace.length, llm_calls: _llmCalls, unverified: !proof.ok, goal: activeGoal?.status ?? null });
       _cleanup();
       const result = {
         ok: true,
@@ -1134,6 +1167,27 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
     }
 
+    // Stagnation : mesure le progrès, pas la répétition. Les outils d'attente et de dialogue
+    // ne disent rien de l'avancement : ils ne comptent ni pour ni contre.
+    if (!POLLING_TOOLS.has(parsed.tool) && !STAGNATION_NEUTRAL.has(parsed.tool)) {
+      if (_madeProgress(parsed, result)) {
+        _stagnation = 0;
+      } else {
+        _stagnation++;
+        if (_stagnation >= STAGNATION_STOP_AT) {
+          _stagnationStops++;
+          const tried = [...new Set(trace.slice(-STAGNATION_STOP_AT).map(e => e.tool).filter(Boolean))].join(', ');
+          return _stopRun('STAGNATION_DÉTECTÉE', `Tâche arrêtée : ${_stagnation} étapes consécutives sans progrès (outils essayés : ${tried}).`);
+        }
+        if (_stagnation === STAGNATION_WARN_AT) {
+          const failure = _lastFailure ? ` Dernier échec : ${_lastFailure.tool} (${_lastFailure.error}).` : '';
+          resultMsg += `
+
+⚠️ STAGNATION : ${STAGNATION_WARN_AT} étapes sans progrès (aucune écriture réussie, aucun test vert, aucun résultat nouveau).${failure} Change d'approche : relis le fichier concerné en entier, élargis la recherche, ou appelle finish en expliquant ce qui bloque.`;
+        }
+      }
+    }
+
     // Plafond proche : laisser au modèle le temps de conclure plutôt que le couper net
     if (!_budgetWarned && maxTaskTokens > 0 && config._taskTokens.used >= maxTaskTokens * 0.8) {
       _budgetWarned = true;
@@ -1170,7 +1224,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     } catch { /* objectif non persistable */ }
   }
 
-  logger.event(session.id, 'run_max_steps', { steps: trace.length, maxSteps });
+  logger.event(session.id, 'run_max_steps', { steps: trace.length, maxSteps, llm_calls: _llmCalls });
   const failResult = { ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
   if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
   return failResult;

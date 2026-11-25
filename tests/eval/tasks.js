@@ -412,8 +412,14 @@ const TASKS = [
     fixture: 'bugfix',
     task: 'Explore le projet sans jamais terminer.',
     config: { maxSteps: 6 },
+    // Deux listings alternés : un même appel répété 5 fois serait coupé par la détection de boucle
     script: [
       { tool: 'list_dir', args: { path: '.' } },
+      { tool: 'list_dir', args: { path: 'src' } },
+      { tool: 'list_dir', args: { path: '.' } },
+      { tool: 'list_dir', args: { path: 'src' } },
+      { tool: 'list_dir', args: { path: '.' } },
+      { tool: 'list_dir', args: { path: 'src' } },
     ],
     checks: (c) => [
       ['arrêt sur budget, pas de crash', c.result.ok === false && c.result.error === 'MAX_STEPS_ATTEINT', c.result.error],
