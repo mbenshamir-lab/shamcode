@@ -161,7 +161,6 @@ describe('boucle agent — information transmise au modèle', () => {
 
 describe('finish — preuve attestée par la trace', () => {
   const write = { tool: 'write_file', args: { path: 'a.js', content: 'neuf' } };
-  const read  = { tool: 'read_file', args: { path: 'a.js' } };
   const finish = (checks) => ({ tool: 'finish', args: { summary: 'ok', checks } });
   const testPass = [{ kind: 'test', command: 'npm test', result: 'pass' }];
   const passing = { 'a.js': 'x\n', 'package.json': '{"scripts":{"test":"node -e 0"}}' };
@@ -189,9 +188,9 @@ describe('finish — preuve attestée par la trace', () => {
     assert.equal(result.unverified, undefined);
   });
 
-  it('refuse un fichier cité mais jamais relu', async () => {
-    const { rejected } = await run([write, finish([{ kind: 'file', path: 'a.js' }]), finish([{ kind: 'file', path: 'a.js' }])]);
-    assert.equal(rejected, 1);
+  it('accepte un fichier cité quand le serveur l\'a attesté, sans relecture du modèle', async () => {
+    const { rejected } = await run([write, finish([{ kind: 'file', path: 'a.js' }])]);
+    assert.equal(rejected, 0);
   });
 
   it('accepte une relecture écrite sous une autre forme de chemin', async () => {

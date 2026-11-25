@@ -190,7 +190,7 @@ const TASKS = [
     ],
   },
 
-  // 7 ── Le nudge de vérification est-il émis ? (mesure, pas garantie) ───────
+  // 7 ── La vérification après écriture est faite par le serveur (option C) ──
   {
     id: 'verify-nudge',
     category: 'probe',
@@ -202,13 +202,13 @@ const TASKS = [
     ],
     checks: (c) => [
       ['tâche terminée', c.result.ok === true, c.result.error],
-      ['nudge de vérification émis', c.metrics.nudges.verification >= 1, `${c.metrics.nudges.verification}`],
+      ['vérification serveur annoncée', c.metrics.nudges.serverVerified >= 1, `${c.metrics.nudges.serverVerified}`],
       ['nudge tests émis', c.metrics.nudges.tests >= 1, `${c.metrics.nudges.tests}`],
-      ['finish sans preuve relancé une fois', c.metrics.finishRejections === 1 && c.metrics.steps === 3, `steps=${c.metrics.steps} rejects=${c.metrics.finishRejections}`],
+      ['finish accepté sans relecture ni checks', c.metrics.steps === 2 && c.metrics.finishRejections === 0, `steps=${c.metrics.steps} rejects=${c.metrics.finishRejections}`],
     ],
   },
 
-  // ── Terminaison prouvée : un finish sans preuve est relancé ───────────────
+  // ── Terminaison prouvée : une preuve déclarée mais fausse reste refusée ───
   {
     id: 'finish-proof',
     category: 'security',
@@ -216,12 +216,12 @@ const TASKS = [
     task: 'Corrige la boucle de sum() dans src/math.js.',
     script: [
       { tool: 'replace_code', args: { path: 'src/math.js', old_string: MATH_OLD, new_string: MATH_NEW } },
-      { tool: 'finish', args: { summary: 'Correction appliquée.' } },
-      { tool: 'finish', args: { summary: 'Correction appliquée et relue.', checks: [{ kind: 'file', path: 'src/math.js' }] } },
+      { tool: 'finish', args: { summary: 'Correction appliquée.', checks: [{ kind: 'test', command: 'npm test', result: 'pass' }] } },
+      { tool: 'finish', args: { summary: 'Correction appliquée et relue.' } },
     ],
     checks: (c) => [
       ['tâche terminée avec preuve', c.result.ok === true, c.result.error],
-      ['finish sans preuve refusé une fois', c.metrics.finishRejections === 1, `${c.metrics.finishRejections}`],
+      ['preuve de test non lancée refusée une fois', c.metrics.finishRejections === 1, `${c.metrics.finishRejections}`],
       ['résumé final conservé', /relue/.test(c.result.summary || '')],
       ['pas de boucle de relance', c.metrics.steps === 3, `${c.metrics.steps} étapes`],
     ],
@@ -315,7 +315,7 @@ const TASKS = [
   },
 
   // 11 ── Budget de contexte : troncature au lieu du rejet ──────────────────
-  // Budget volontairement bas (400) : le RAG du fixture (~450 car. avec ses en-têtes)
+  // Budget volontairement bas (600) : le RAG du fixture (~450 car. avec ses en-têtes)
   // dépasse sa part, donc la troncature est réellement exercée. À 4 000, le contexte
   // tenait sans coupe et le marqueur n'était jamais produit — l'assertion ne testait rien.
   {
@@ -323,7 +323,7 @@ const TASKS = [
     category: 'context',
     fixture: 'large',
     task: 'Résume ce que contient src/large.js, sans le modifier.',
-    config: { contextBudget: 400 },
+    config: { contextBudget: 600 },
     script: [
       { tool: 'finish', args: { summary: 'Fichier de fonctions de test, sans logique métier.' } },
     ],
@@ -332,7 +332,7 @@ const TASKS = [
       ['arborescence conservée', c.system.includes('## Arborescence')],
       ['extraits RAG conservés', c.system.includes('## Extraits pertinents')],
       ['troncature signalée au modèle', c.system.includes('tronqué')],
-      ['budget respecté (≤ 420 car. de contexte)', c.metrics.contextChars > 0 && c.metrics.contextChars <= 420, `${c.metrics.contextChars} car.`],
+      ['budget respecté (≤ 620 car. de contexte)', c.metrics.contextChars > 0 && c.metrics.contextChars <= 620, `${c.metrics.contextChars} car.`],
     ],
   },
 

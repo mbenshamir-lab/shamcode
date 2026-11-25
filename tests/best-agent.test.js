@@ -63,7 +63,7 @@ describe('agent — nudge vérification après écriture', () => {
     return d;
   }
 
-  test('resultMsg contient VÉRIFICATION OBLIGATOIRE après write_file réussi', async () => {
+  test('resultMsg atteste la vérification serveur après write_file réussi', async () => {
     const dir = tmpDir();
     const capturedMsgs = [];
     let step = 0;
@@ -72,12 +72,12 @@ describe('agent — nudge vérification après écriture', () => {
       step++;
       if (step === 1) return JSON.stringify({ tool: 'plan', args: { objective: 'test', goals: [], steps: [] } });
       if (step === 2) return JSON.stringify({ tool: 'write_file', args: { path: 'hello.txt', content: 'hello' } });
-      // Le 3e appel doit recevoir le nudge de vérification — on capture les messages
+      // Le finish sans "checks" doit être accepté : le serveur a attesté l'écriture.
       return JSON.stringify({ tool: 'finish', args: { summary: 'done' } });
     };
 
     const events = [];
-    await runAgent({
+    const result = await runAgent({
       task: 'créer hello.txt',
       llmGenerate: async (msgs, opts) => {
         capturedMsgs.push([...msgs]);
@@ -88,13 +88,20 @@ describe('agent — nudge vérification après écriture', () => {
       onEvent: e => events.push(e),
     });
 
-    // Le message résultat envoyé après write_file (3e message user) doit contenir le nudge
+    // Le message résultat envoyé après write_file (3e message user) porte l'attestation
     const afterWriteMsg = capturedMsgs[2]?.slice(-1)[0];
     assert.ok(afterWriteMsg, 'doit y avoir un message après write_file');
     assert.ok(
-      afterWriteMsg.content.includes('VÉRIFICATION OBLIGATOIRE'),
-      `Le message après write_file doit contenir VÉRIFICATION OBLIGATOIRE.\nObtenu: ${afterWriteMsg.content.slice(0, 300)}`,
+      afterWriteMsg.content.includes('vérification serveur') && afterWriteMsg.content.includes('sha1'),
+      `Le message après write_file doit porter la vérification serveur.\nObtenu: ${afterWriteMsg.content.slice(0, 300)}`,
     );
+    assert.ok(
+      !afterWriteMsg.content.includes('VÉRIFICATION OBLIGATOIRE'),
+      'la relecture imposée au modèle ne doit plus être demandée',
+    );
+    // Écriture attestée + finish sans checks : accepté, donc une étape de gagnée.
+    assert.ok(result.ok, result.error);
+    assert.equal(result.unverified, undefined);
 
     try { fs.rmSync(dir, { recursive: true }); } catch {}
   });
@@ -190,15 +197,15 @@ describe('agent — budget précoce à 5 étapes', () => {
 describe('system.js — règle 9 vérification après écriture', () => {
   const { buildSystemPrompt } = require('../src/harness/prompts/system');
 
-  test('le prompt contient la règle de vérification après write/replace', () => {
+  test('le prompt renvoie la vérification au serveur au lieu d\'imposer une relecture', () => {
     const prompt = buildSystemPrompt(['read_file', 'write_file', 'finish'], '');
     assert.ok(
-      prompt.includes('write_file ou replace_code réussi'),
-      'Le prompt doit mentionner la règle de vérification après écriture',
+      prompt.includes('vérification serveur'),
+      'Le prompt doit mentionner la vérification serveur après écriture',
     );
     assert.ok(
-      prompt.includes('read_file') && prompt.includes('intégration'),
-      'Le prompt doit mentionner read_file et intégration dans la règle 9',
+      !prompt.includes('Après chaque write_file ou replace_code réussi : appelle immédiatement read_file'),
+      'La relecture imposée après écriture doit être retirée de la règle 9',
     );
   });
 

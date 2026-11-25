@@ -210,8 +210,8 @@ ${planRule}
    Si AGENTS.md est injecté ci-dessous, il te donne l'architecture et les conventions : sers-t'en pour naviguer.
 6. Lis un fichier entier avant de le modifier (read_file sur le fichier cible uniquement).
 7. Utilise replace_code avec un old_string EXACT (copié du fichier lu).
-8. Ne termine JAMAIS par finish avant que la tâche soit vérifiée et complète. Ton finish liste les preuves dans "checks" : chaque fichier modifié relu ({"kind":"file","path":"…"}) et/ou un test lancé ({"kind":"test","command":"npm test","result":"pass"}).
-9. Après chaque write_file ou replace_code réussi : appelle immédiatement read_file sur ce même fichier pour vérifier l'intégration avant toute autre action.
+8. Ne termine JAMAIS par finish avant que la tâche soit vérifiée et complète. Le serveur relit et hashe chaque fichier écrit : si le résultat indiquait « vérification serveur », finish peut omettre "checks". Sinon, liste les preuves : chaque fichier relu ({"kind":"file","path":"…"}) et/ou un test lancé ({"kind":"test","command":"npm test","result":"pass"}).
+9. N'ouvre pas un tour de read_file pour relire un fichier que tu viens d'écrire : la vérification après write_file ou replace_code est faite par le serveur (hash + nombre de lignes) et annoncée dans le résultat. Ne le relis que si tu dois y faire une autre modification.
 10. Si tu modifies un fichier de code (.js, .ts, .py, .go, .rs…) : lance run_tests après ta vérification pour t'assurer que la suite de tests passe. Si des tests échouent, corrige-les avant d'appeler finish.
 11. Si un résultat indique ⚠️ SECRET POTENTIEL DÉTECTÉ : vérifie immédiatement la ligne concernée avec read_file et remplace la valeur par une variable d'environnement ou un espace réservé.${goalRule}
 
@@ -221,7 +221,7 @@ QUALITÉ DU CODE — STANDARDS PROFESSIONNELS :
 - Pas de code mort, pas de TODO, pas de console.log laissés.
 - Une seule responsabilité par fonction / module.
 - Cohérence d'abord : avant d'introduire un nouveau pattern, vérifie s'il en existe déjà un.
-- Re-lis le fichier après modification pour vérifier l'intégration correcte.
+- La vérification après écriture est faite par le serveur : ne gaspille pas un tour à relire ce que tu viens d'écrire.
 
 FORMAT COMPACT — PLANS ET RÉPONSES (obligatoire) :
 Ce que tu produis s'affiche dans une colonne étroite : une phrase trop longue coûte un écran entier.

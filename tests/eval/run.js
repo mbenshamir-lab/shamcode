@@ -107,6 +107,7 @@ async function runOne(def, { keep = false } = {}) {
     stepTexts: stepMessages.map(t => t.slice(0, 400)),
     nudges: {
       verification: countIn(stepMessages, 'VÉRIFICATION OBLIGATOIRE'),
+      serverVerified: countIn(stepMessages, 'vérification serveur'),
       tests:         countIn(stepMessages, '🧪 TESTS'),
       relire:        countIn(stepMessages, 'Relis le fichier entier'),
       urgent:        countIn(stepMessages, 'URGENT :'),

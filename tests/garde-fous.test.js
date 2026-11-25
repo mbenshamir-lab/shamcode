@@ -150,11 +150,9 @@ describe('preuve de finish par fichier', () => {
     return { rejected: events.filter(e => e.type === 'finish_rejected'), result };
   }
 
-  it('un seul fichier relu sur deux ne suffit plus', async () => {
-    const { rejected } = await steps([write('a.js'), write('b.js'), read('a.js'), finish(cited), finish(cited)]);
-    assert.equal(rejected.length, 1);
-    assert.ok(rejected[0].reason.includes('b.js'));
-    assert.ok(!rejected[0].reason.includes('a.js'));
+  it('tous les fichiers écrits sont attestés par le serveur, sans relecture du modèle', async () => {
+    const { rejected } = await steps([write('a.js'), write('b.js'), finish(cited)]);
+    assert.equal(rejected.length, 0);
   });
 
   it('tous les fichiers relus : accepté', async () => {

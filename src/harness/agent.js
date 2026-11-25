@@ -552,6 +552,26 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
   const _modEntries = () => trace.filter(entry => modTools.has(entry.tool) && entry.result?.ok);
 
+  /**
+   * Preuve serveur d'une écriture : relit le fichier, en atteste le hash et le nombre
+   * de lignes. Remplace la relecture imposée au modèle (un tour de LLM par écriture)
+   * sans perdre la vérification : la preuve ne dépend plus d'une déclaration du modèle.
+   * @returns {{ path: string, sha1: string, lines: number, step: number } | null}
+   */
+  const _attestWrite = (relPath, step) => {
+    try {
+      const content = fs.readFileSync(guard(relPath), 'utf8');
+      return {
+        path: _normPath(relPath),
+        sha1: crypto.createHash('sha1').update(content).digest('hex').slice(0, 12),
+        lines: content.split('\n').length,
+        step,
+      };
+    } catch {
+      return null; // chemin refusé, fichier binaire ou disparu : aucune preuve
+    }
+  };
+
   const _fileProven = (filePath) => {
     const target = _normPath(filePath);
     const last = _modEntries().filter(e =>
@@ -560,6 +580,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (!last) return false;
     // Suppression : plus rien à relire. Déplacement : le contenu n'a pas changé.
     if (last.tool === TOOLS.DELETE_FILE || last.tool === TOOLS.MOVE_FILE) return true;
+    // Écriture attestée par le serveur à l'étape même de la modification
+    if (last.verified?.sha1) return true;
     return trace.some(e => e.tool === TOOLS.READ_FILE && e.result?.ok && e.step > last.step &&
       _normPath(e.args?.path) === target);
   };
@@ -586,10 +608,15 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     if (modified.length === 0) return { ok: true };
 
     const checks = Array.isArray(args?.checks) ? args.checks.filter(c => c && typeof c === 'object') : [];
+
+    // Preuve serveur : chaque fichier modifié a été relu et hashé par l'agent lui-même
+    // juste après l'écriture. Le modèle n'a donc rien à déclarer ni à relire.
     if (checks.length === 0) {
+      const unproven = modified.filter(p => !_fileProven(p));
+      if (unproven.length === 0) return { ok: true, serverVerified: true };
       return {
         ok: false,
-        reason: `aucune vérification déclarée alors que ${modified.length} fichier(s) ont été modifiés (${modified.slice(0, 3).join(', ')})`,
+        reason: `aucune vérification pour ${unproven.slice(0, 3).join(', ')} (${modified.length} fichier(s) modifiés)`,
       };
     }
 
@@ -600,6 +627,13 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       ((c.kind === 'test' || c.kind === 'command') && !c.command));
     if (malformed) {
       return { ok: false, reason: 'une vérification est incomplète (kind + path ou command attendus)' };
+    }
+
+    // Preuve serveur sur les fichiers ne dispense pas d'un mensonge sur les tests : une
+    // exécution déclarée « pass » qui n'a pas eu lieu après la dernière modification est refusée.
+    const falseTest = checks.find(c => c.kind === 'test' && String(c.result || '').toLowerCase() === 'pass' && !_testProven(c));
+    if (falseTest) {
+      return { ok: false, reason: `test déclaré « ${falseTest.command} » mais non lancé après la dernière modification : lance run_tests, puis déclare-le` };
     }
 
     // Un test passé couvre tout. Sinon chaque fichier modifié doit avoir été relu : en
@@ -836,7 +870,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         onEvent({ type: 'finish_rejected', reason: proof.reason });
         messages.push({
           role: 'user',
-          content: `TERMINAISON SANS PREUVE : ${proof.reason}.\nRappelle finish en listant les vérifications réelles, par exemple :\n{"tool":"finish","args":{"summary":"…","checks":[{"kind":"file","path":"src/fichier.js"},{"kind":"test","command":"npm test","result":"pass","count":12}]}}`,
+          content: `TERMINAISON SANS PREUVE : ${proof.reason}.\nRappelle finish en listant les vérifications réelles, par exemple :\n{"tool":"finish","args":{"summary":"…","checks":[{"kind":"file","path":"src/fichier.js"},{"kind":"test","command":"npm test","result":"pass","count":12}]}}\nSi le résultat d'écriture indiquait « vérification serveur » pour ces fichiers, rappelle finish sans "checks".`,
         });
         continue;
       }
@@ -952,6 +986,17 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _lastFailure = { tool: parsed.tool, error: String(result.error || 'ERREUR'), step };
     }
 
+    // Preuve serveur : on relit le fichier écrit et on l'atteste (hash + lignes).
+    // Le modèle n'a plus besoin d'un tour de read_file pour « vérifier ».
+    if (result.ok && parsed.args?.path &&
+        (parsed.tool === TOOLS.WRITE_FILE || parsed.tool === TOOLS.REPLACE_CODE)) {
+      const attestation = _attestWrite(parsed.args.path, step);
+      if (attestation) {
+        entry.verified = attestation;
+        _verified.set(String(parsed.args.path), step);
+      }
+    }
+
     // Le modèle a inventé un nom d'outil : lui donner la carte des familles plutôt
     // qu'un simple refus, sinon un petit modèle répète le même nom.
     if (!result.ok && String(result.error || '').startsWith('OUTIL_INCONNU')) {
@@ -1016,18 +1061,20 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       resultMsg += `\n\nOBJECTIF :\n${result.block}`;
     }
 
-    // Vérification obligatoire après écriture : force le LLM à relire avant de continuer.
-    // Les erreurs de code les plus fréquentes viennent d'une écriture non vérifiée.
+    // Vérification après écriture : le serveur a déjà relu et hashé le fichier.
+    // On l'annonce pour éviter un tour de read_file inutile ; les nudges utiles restent.
     if (result.ok && parsed.args?.path &&
         (parsed.tool === TOOLS.WRITE_FILE || parsed.tool === TOOLS.REPLACE_CODE)) {
-      resultMsg += `\n\nVÉRIFICATION OBLIGATOIRE : appelle read_file { "path": "${parsed.args.path}" } avant toute autre action.`;
+      if (entry.verified) {
+        resultMsg += `\n\n[vérification serveur : ${entry.verified.path} relu, sha1 ${entry.verified.sha1}, ${entry.verified.lines} lignes — inutile de le relire]`;
+      }
 
       // Nudge tests : si le fichier modifié est un fichier de code ET que le projet a
       // réellement une suite de tests (sinon on réclame un outil qui échouera).
       const CODE_EXTS = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.rb', '.java', '.cs', '.cpp', '.c', '.php'];
       const ext = path.extname(parsed.args.path).toLowerCase();
       if (CODE_EXTS.includes(ext) && activeToolNames.includes('run_tests') && _projectHasTests(projectRoot)) {
-        resultMsg += '\n\n🧪 TESTS : après avoir relu le fichier, appelle run_tests pour vérifier que les modifications ne cassent pas la suite.';
+        resultMsg += '\n\n🧪 TESTS : appelle run_tests pour vérifier que les modifications ne cassent pas la suite.';
       }
 
       // Avertissement secrets : le LLM a peut-être écrit un secret dans le fichier

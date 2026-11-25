@@ -368,3 +368,13 @@
 **Conséquences** : change le contrat de `llmGenerate`. Les schémas doivent être complétés : 27 existent pour le serveur MCP, sur plus de 70 outils.
 **Alternatives rejetées** : traduire les appels natifs vers le JSON actuel (l'historique rejoué ne contiendrait pas de vrais appels, pas de parallélisme) ; basculer tout le projet (impossible pour WebLLM).
 **Reporté** : embeddings multilingues (révision d'ADR-009) et bac à sable fort, à décider après une mesure sur gros dépôt.
+
+---
+
+## ADR-038 : Preuve d'écriture attestée par le serveur
+
+**Date** : 2026-11-25
+**Contexte** : après chaque `write_file` / `replace_code`, le modèle devait appeler `read_file` pour « vérifier », ce qui fabriquait la preuve exigée par `finish` : +1 tour de LLM par fichier écrit, et un `finish` refusé quand le modèle oubliait de déclarer `checks`. Option C de `docs/PROPOSITION_BOUCLE_AGENT.md`.
+**Décision** : `agent.js` relit lui-même le fichier écrit (`_attestWrite` : sha1 tronqué + nombre de lignes, via `makeGuard`), le consigne dans l'entrée de trace (`entry.verified`) et l'annonce dans le résultat (« vérification serveur »). `_fileProven` accepte cette attestation ; `finish` sans `checks` est accepté si tous les fichiers modifiés sont attestés. Un test déclaré « pass » mais non lancé après la dernière modification reste refusé. La consigne « VÉRIFICATION OBLIGATOIRE » et les règles correspondantes du prompt sont retirées.
+**Conséquences** : une étape de moins par fichier écrit, plus de refus de `finish` pour oubli de déclaration. La preuve ne dépend plus d'une déclaration du modèle. Les écritures hors outils suivis (shell) ne sont pas attestées.
+**Alternatives rejetées** : lots d'appels (change le contrat du parser, risqué sous 3B) ; lecture multi-fichiers (option B, reportée).
