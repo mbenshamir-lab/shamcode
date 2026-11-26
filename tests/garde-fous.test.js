@@ -87,7 +87,7 @@ describe('détection de boucle', () => {
 
   it('l\'attente d\'un service n\'est pas une boucle', async () => {
     const poll = { tool: 'list_processes', args: {} };
-    const { result, seen } = await run(n => (n <= 12 ? poll : null));
+    const { result, seen } = await run(n => (n <= 12 ? poll : null), { config: { _sleep: async () => {} } });
     assert.equal(result.ok, true);
     assert.ok(!seen.some(s => s.includes('BOUCLE')));
   });

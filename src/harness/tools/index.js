@@ -161,7 +161,7 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.GIT_COMMIT:
       return gitCommit(args, guard, projectRoot, config);
     case TOOLS.FORMAT_FILE:
-      return formatFile(args, guard, projectRoot);
+      return formatFile(args, guard, projectRoot, config);
     case TOOLS.FIND_RELEVANT_FILES:
       return findRelevantFiles(args, projectRoot);
     case TOOLS.RUN_SHELL:

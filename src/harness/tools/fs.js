@@ -190,7 +190,8 @@ async function writeFile({ path: relPath, content }, guard, config = {}, onEvent
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content, 'utf8');
     if (config.autoFormat && config._guard) {
-      await formatFile({ path: relPath }, config._guard, config._projectRoot || '').catch(() => {});
+      // Déjà sauvegardé avant l'écriture : une seconde copie masquerait la version d'origine
+      await formatFile({ path: relPath }, config._guard, config._projectRoot || '', { backupBeforeWrite: false }).catch(() => {});
     }
     const secretWarnings = _detectSecrets(content);
     return { ok: true, path: relPath, ...(secretWarnings.length ? { secretWarnings } : {}) };

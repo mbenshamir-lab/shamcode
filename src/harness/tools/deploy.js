@@ -12,6 +12,7 @@ const fs          = require('fs');
 const path        = require('path');
 const { exec }    = require('child_process');
 const { approveCommand, _isBlocked } = require('./shell');
+const { safeEnv } = require('./run-command');
 
 const MAX_DEPLOY_TIMEOUT_MS = 300_000; // 5 minutes
 const MAX_OUTPUT_CHARS      = 5_000;
@@ -107,10 +108,11 @@ function _parseUrl(output) {
 
 // ── Exécution d'une commande ──────────────────────────────────────────────────
 
-function _runCmd(command, cwd, timeoutMs) {
+function _runCmd(command, cwd, timeoutMs, env = process.env) {
   return new Promise((resolve) => {
     exec(command, {
       cwd,
+      env,
       timeout:   timeoutMs,
       maxBuffer: 10 * 1024 * 1024,
       shell:     true,
@@ -199,7 +201,10 @@ async function deployProject(args = {}, projectRoot = '', config = {}) {
 
   // ── Étape 2 : Deploy ──────────────────────────────────────────────────────
   const deployTime  = buildCmd ? Math.floor(timeoutMs * 0.6) : timeoutMs;
-  const deployResult = await _runCmd(deployCmd, projectRoot, deployTime);
+  // Les plateformes ont besoin de leurs jetons ; une commande libre, comme run_shell,
+  // ne doit pas lire les secrets de l'environnement (ADR-042)
+  const deployEnv    = commandOverride ? safeEnv() : process.env;
+  const deployResult = await _runCmd(deployCmd, projectRoot, deployTime, deployEnv);
   parts.push(`[deploy] $ ${deployCmd}\n${deployResult.output}`);
 
   const fullOutput = parts.join('\n').slice(0, MAX_OUTPUT_CHARS);

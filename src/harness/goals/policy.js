@@ -105,8 +105,11 @@ function _evidenceBackedByTrace(criterion, trace) {
   return false;
 }
 
-/** batch_replace liste les fichiers modifiés dans son résultat, pas dans ses arguments. */
+/** Fichiers modifiés par une entrée : batch_replace et fix_loop les listent dans leur résultat. */
 function _touchedPaths(entry) {
+  // Une boucle de correction en échec a pu écrire avant d'échouer
+  if (entry.tool === TOOLS.FIX_LOOP) return entry.result?.modified_files || [];
+  if (!MOD_TOOLS.has(entry.tool) || !entry.result?.ok) return [];
   if (entry.tool === TOOLS.BATCH_REPLACE) {
     return (entry.result.results || []).filter(r => r.modified).map(r => r.path);
   }
@@ -114,8 +117,7 @@ function _touchedPaths(entry) {
 }
 
 function _touchesDependencyFile(trace) {
-  return trace.some(t => MOD_TOOLS.has(t.tool) && t.result?.ok
-    && _touchedPaths(t).some(p => DEPENDENCY_FILES.some(f => p.endsWith(f))));
+  return trace.some(t => _touchedPaths(t).some(p => DEPENDENCY_FILES.some(f => p.endsWith(f))));
 }
 
 /**

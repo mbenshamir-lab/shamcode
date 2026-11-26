@@ -58,7 +58,11 @@ function extractToolCall(rawText) {
   }
   if (!parsed) return { error: lastError ? `JSON_INVALIDE: ${lastError.message}` : 'JSON_NON_OBJET' };
 
-  if (!parsed.tool || typeof parsed.tool !== 'string') return { error: 'OUTIL_MANQUANT' };
+  if (!parsed.tool || typeof parsed.tool !== 'string') {
+    // Les noms des clés suffisent à comprendre le format employé ; les valeurs restent privées
+    const keys = Object.keys(parsed).slice(0, 8).map(k => k.slice(0, 30));
+    return { error: 'OUTIL_MANQUANT', keys };
+  }
   if (typeof parsed.args !== 'object' || parsed.args === null) parsed.args = {};
 
   // Intention annoncée à l'utilisateur avant l'action (au moins deux phrases)

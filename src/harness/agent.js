@@ -128,9 +128,43 @@ const LOOP_STOP_AT = 5;
 // consécutives sans progrès (écriture réussie, test vert, fichier ou résultat jamais vu).
 const STAGNATION_WARN_AT = 5;
 const STAGNATION_STOP_AT = 10;
+// Réponses inutilisables (illisibles, sans outil, hors périmètre) : comptées sur une fenêtre,
+// car elles alternent avec des réponses correctes sans forcément s'enchaîner (ADR-043).
+const UNUSABLE_WINDOW = 20;
+const UNUSABLE_WARN_AT = 6;
+const UNUSABLE_STOP_AT = 10;
+const UNUSABLE_STOP_AT_LOCAL = 14; // un modèle local se trompe de format plus souvent
+// Même échec de test ou de commande malgré les modifications (ADR-043)
+const SAME_FAILURE_WARN_AT = 3;
+const SAME_FAILURE_STOP_AT = 6;
+const REPEATABLE_TOOLS = new Set([TOOLS.RUN_TESTS, TOOLS.RUN_SHELL]);
+// Consultations d'affilée : chacune coûte une génération, le harness les espace (ADR-043)
+const POLL_DELAY_FROM = 3;
+const POLL_DELAYS_MS = [2000, 4000, 8000, 16000, 30000];
+const POLL_WARN_AT = 8;
+const POLL_STOP_AT = 15;
 // Attendre qu'un serveur démarre répète légitimement le même appel
 const STAGNATION_NEUTRAL = new Set([TOOLS.PLAN, TOOLS.GOAL, TOOLS.ASK_USER, TOOLS.SCRATCHPAD_TOOL]);
 const POLLING_TOOLS = new Set([TOOLS.GET_OUTPUT, TOOLS.CHECK_SERVICE, TOOLS.BROWSER_WAIT, TOOLS.LIST_PROCESSES, TOOLS.READ_MESSAGES]);
+
+/** Pause interrompue par le Stop de l'utilisateur. */
+function _pause(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) { resolve(); return; }
+    const done = () => { clearTimeout(timer); signal?.removeEventListener('abort', done); resolve(); };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener('abort', done, { once: true });
+  });
+}
+
+/** Retire d'une sortie ce qui change d'une exécution à l'autre pour une même panne. */
+function _failureText(text) {
+  return String(text || '')
+    .replace(/duration_ms:?\s*[\d.]+/g, 'duration_ms')
+    .replace(/\d+(\.\d+)?\s?(ms|s|sec|seconds|secondes)\b/g, '<durée>')
+    .replace(/\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?)?/g, '<date>')
+    .replace(/\b\d{1,2}:\d{2}:\d{2}(\.\d+)?\b/g, '<heure>');
+}
 
 /**
  * Message d'échec d'un outil. Le code d'erreur seul ne dit pas quoi corriger : la sortie
@@ -563,19 +597,23 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     return entry.args?.path ? [_normPath(entry.args.path)] : [];
   };
 
-  // batch_replace ne nomme pas ses fichiers dans ses arguments : ils sont dans son résultat
-  const _batchWrites = (tool, result) => (tool === TOOLS.BATCH_REPLACE
-    ? (result?.results || []).filter(r => r.modified).map(r => r.path)
-    : []);
+  // batch_replace et fix_loop nomment les fichiers écrits dans leur résultat, pas leurs arguments
+  const _reportsWrites = new Set([TOOLS.BATCH_REPLACE, TOOLS.FIX_LOOP]);
+  const _resultWrites = (tool, result) => {
+    if (tool === TOOLS.BATCH_REPLACE) return (result?.results || []).filter(r => r.modified).map(r => r.path);
+    if (tool === TOOLS.FIX_LOOP) return result?.modified_files || [];
+    return [];
+  };
 
   /** Fichiers touchés par une entrée de trace réussie. */
   const _entryPaths = (entry) => {
-    if (entry.tool === TOOLS.BATCH_REPLACE) return _batchWrites(entry.tool, entry.result);
-    if (!modTools.has(entry.tool)) return [];
+    // Une boucle de correction en échec a pu écrire avant d'échouer
+    if (_reportsWrites.has(entry.tool)) return _resultWrites(entry.tool, entry.result);
+    if (!modTools.has(entry.tool) || !entry.result?.ok) return [];
     return [entry.args?.path, entry.tool === TOOLS.MOVE_FILE ? entry.args?.dest : null].filter(Boolean);
   };
 
-  const _modEntries = () => trace.filter(entry => entry.result?.ok && _entryPaths(entry).length > 0);
+  const _modEntries = () => trace.filter(entry => _entryPaths(entry).length > 0);
 
   /**
    * Preuve serveur d'une écriture : relit le fichier, en atteste le hash et le nombre
@@ -611,7 +649,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
   const _testProven = (check) => {
     const lastMod = Math.max(0, ..._modEntries().map(e => e.step));
-    return trace.some(e => e.step > lastMod && e.result?.ok && (
+    // Une boucle de correction réussie relance les tests après ses propres écritures
+    return trace.some(e => (e.step > lastMod || (e.tool === TOOLS.FIX_LOOP && e.step === lastMod)) && e.result?.ok && (
       e.tool === TOOLS.RUN_TESTS || e.tool === TOOLS.FIX_LOOP ||
       (e.tool === TOOLS.RUN_SHELL && e.args?.command === check.command)));
   };
@@ -718,19 +757,77 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const _readPaths   = new Set();            // fichiers déjà lus pendant ce run
   let _llmCalls = 0;                          // générations LLM, reprises de parse comprises
   let _stagnationStops = 0;
+  const _fileStates   = new Set();   // « chemin|empreinte » déjà atteints
+  const _writtenPaths = new Set();   // fichiers modifiés au moins une fois
+  const _failures     = new Map();   // empreinte d'un échec → { command, count }
+  let _pollRun = 0;                  // consultations d'affilée
+  let _pollWaitMs = 0;
+  const _recentReplies = [];                   // 1 = génération inutilisable, sur la fenêtre
+  let _unusableTotal = 0;
+  let _unusableWarned = false;
+  const _unusableStopAt = modelPolicy.id === 'cloud' ? UNUSABLE_STOP_AT : UNUSABLE_STOP_AT_LOCAL;
+
+  /** Compteurs joints aux journaux de fin de tâche. */
+  const _counters = () => ({
+    llm_calls: _llmCalls, unusable_replies: _unusableTotal, poll_wait_s: Math.round(_pollWaitMs / 1000),
+  });
+
+  /**
+   * Enregistre les états de fichiers produits par une étape, d'après la relecture serveur.
+   * @returns {{ count: number, newState: boolean }}
+   */
+  const _recordWrites = (call, entry, res, step) => {
+    const states = [entry.verified, ...(entry.verifiedFiles || [])]
+      .filter(Boolean).map(proof => [proof.path, proof.sha1]);
+    if (res.ok && (call.tool === TOOLS.DELETE_FILE || call.tool === TOOLS.MOVE_FILE)) {
+      states.push([_normPath(call.args.path), 'absent']);
+      const moved = call.tool === TOOLS.MOVE_FILE ? _attestWrite(call.args.dest, step) : null;
+      if (moved) states.push([moved.path, moved.sha1]);
+    }
+    const newState = states.some(state => !_fileStates.has(state.join('|')));
+    // Un fichier jamais touché : le travail s'étend, les échecs passés ne comptent plus
+    if (states.some(([file]) => !_writtenPaths.has(file))) _failures.clear();
+    for (const state of states) {
+      _fileStates.add(state.join('|'));
+      _writtenPaths.add(state[0]);
+    }
+    return { count: states.length, newState };
+  };
+
+  /** Nombre de fois qu'une commande a échoué exactement de cette façon ; 0 si sans objet. */
+  const _countFailure = (call, res) => {
+    if (!REPEATABLE_TOOLS.has(call.tool)) return 0;
+    const command = String(call.args?.command || '');
+    if (res.ok) {
+      for (const [key, failure] of _failures) {
+        if (call.tool === TOOLS.RUN_TESTS || failure.command === command) _failures.delete(key);
+      }
+      return 0;
+    }
+    const code = res.exitCode ?? res.code;
+    if (code === undefined) return 0; // commande refusée avant exécution : rien n'a échoué
+    const key = crypto.createHash('sha1')
+      .update(JSON.stringify([call.tool, command, code, _failureText(res.error), _failureText(res.stdout)]))
+      .digest('hex');
+    const count = (_failures.get(key)?.count || 0) + 1;
+    _failures.set(key, { command, count });
+    return count;
+  };
 
   /**
    * Cette étape a-t-elle fait avancer la tâche ? Un échec n'avance jamais ; un résultat déjà
-   * montré au modèle non plus (c'est ce qui rend un cycle A/B ou une recherche vaine visibles).
+   * montré au modèle ou un fichier revenu à un contenu connu non plus (c'est ce qui rend un
+   * cycle A/B ou une recherche vaine visibles).
    */
-  const _madeProgress = (call, res) => {
+  const _madeProgress = (call, res, writes) => {
     if (!res.ok) return false;
     // L'empreinte est toujours enregistrée : sinon une première lecture, comptée comme
     // progrès par son chemin, ferait passer pour neuve sa relecture après compaction.
     const fingerprint = crypto.createHash('sha1').update(JSON.stringify(res)).digest('hex');
     const unseen = !_seenResults.has(fingerprint);
     _seenResults.add(fingerprint);
-    if (modTools.has(call.tool)) return true;
+    if (writes.count > 0) return writes.newState;
+    if (modTools.has(call.tool)) return true; // écriture non relisible : bénéfice du doute
     if ((call.tool === TOOLS.RUN_TESTS || call.tool === TOOLS.FIX_LOOP) && res.exitCode === 0) return true;
     if (call.tool === TOOLS.READ_FILE) {
       const fresh = (Array.isArray(res.files)
@@ -745,7 +842,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
   /** Termine la tâche sur un échec décidé par le harness, en le signalant à l'utilisateur. */
   const _stopRun = (error, message) => {
-    logger.event(session.id, 'run_stopped', { error, steps: trace.length, llm_calls: _llmCalls, stagnation_stops: _stagnationStops });
+    logger.event(session.id, 'run_stopped', { error, steps: trace.length, ..._counters(), stagnation_stops: _stagnationStops });
     onEvent({ type: 'note_user', level: 'error', message });
     _cleanup();
     const stopped = { ok: false, error, trace, sessionId: session.id };
@@ -757,6 +854,27 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const _formatFeedback = (error) => (_lastResponseCut
     ? 'Réponse coupée par la limite de tokens : le JSON est incomplet. Ne renvoie pas le même contenu : crée le fichier avec un write_file court, puis complète-le avec des replace_code successifs.'
     : `Format invalide (${error}). Réponds uniquement avec un JSON valide :\n{"tool": "<nom>", "args": { ... }}`);
+
+  /**
+   * Compte une génération dans la fenêtre des réponses.
+   * @param {string|null} reason erreur de la réponse, null si elle est exploitable
+   * @returns {{ stop?: object, advice?: string }} arrêt de la tâche, ou avis à joindre à la consigne
+   */
+  const _scoreReply = (reason, { step, keys } = {}) => {
+    _recentReplies.push(reason ? 1 : 0);
+    if (_recentReplies.length > UNUSABLE_WINDOW) _recentReplies.shift();
+    if (!reason) return {};
+    _unusableTotal++;
+    if (keys) logger.warn('llm', 'réponse sans outil', { step, keys });
+    const count = _recentReplies.reduce((n, bad) => n + bad, 0);
+    if (count >= _unusableStopAt) {
+      return { stop: _stopRun('RÉPONSES_INUTILISABLES', `Tâche arrêtée : ${count} réponses inutilisables sur les ${_recentReplies.length} dernières (dernière cause : ${reason}).`) };
+    }
+    if (count < UNUSABLE_WARN_AT || _unusableWarned) return {};
+    _unusableWarned = true;
+    const received = keys ? ` Ta dernière réponse contenait les clés ${keys.join(', ') || '(aucune)'}, sans « tool ».` : '';
+    return { advice: `\n\n⚠️ RÉPONSES INUTILISABLES : ${count} des ${_recentReplies.length} dernières. Réponds par un seul objet JSON, sans texte autour : {"tool": "<nom d'un outil listé>", "args": { ... }}.${received}` };
+  };
 
   onEvent({ type: 'session_start', sessionId: session.id });
 
@@ -819,7 +937,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       _cleanup();
       const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
       if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
-      logger.event(session.id, 'run_aborted', { steps: trace.length, llm_calls: _llmCalls });
+      logger.event(session.id, 'run_aborted', { steps: trace.length, ..._counters() });
       onEvent({ type: 'cancelled' });
       return cancelled;
     }
@@ -844,11 +962,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           _cleanup();
           const cancelled = { ok: false, error: 'ANNULÉ', trace, sessionId: session.id };
           if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: cancelled, scratchpad: scratchpad.toJSON() });
-          logger.event(session.id, 'run_aborted', { steps: trace.length, llm_calls: _llmCalls });
+          logger.event(session.id, 'run_aborted', { steps: trace.length, ..._counters() });
           onEvent({ type: 'cancelled' });
           return cancelled;
         }
         _cleanup();
+        logger.event(session.id, 'run_llm_error', { steps: trace.length, ..._counters() });
         const failed = { ok: false, error: `LLM_ERREUR: ${err.message}`, trace, sessionId: session.id };
         if (!isSubAgent) updateSession(sessionPath, { steps: trace, result: failed, scratchpad: scratchpad.toJSON() });
         return failed;
@@ -857,19 +976,23 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       if (!parsed.error) break;
       if (attempt >= maxParseRetries) break;   // plus de reprise : traité ci-dessous
       // Renvoyer la sortie fautive + la consigne de format, puis régénérer.
-      messages.push({ role: 'assistant', content: rawText });
-      messages.push({ role: 'user', content: _formatFeedback(parsed.error) });
       trace.push({ step, error: parsed.error, attempt: attempt + 1 });
       onEvent({ type: 'parse_error', step, error: parsed.error, attempt: attempt + 1 });
+      const retryScore = _scoreReply(parsed.error, { step, keys: parsed.keys });
+      if (retryScore.stop) return retryScore.stop;
+      messages.push({ role: 'assistant', content: rawText });
+      messages.push({ role: 'user', content: _formatFeedback(parsed.error) + (retryScore.advice || '') });
     }
 
     // ── Parse ────────────────────────────────────────────────────────────────
     if (parsed.error) {
-      // Guider le LLM avec un message d'erreur explicite
-      messages.push({ role: 'assistant', content: rawText });
-      messages.push({ role: 'user', content: _formatFeedback(parsed.error) });
       trace.push({ step, error: parsed.error });
       onEvent({ type: 'parse_error', step, error: parsed.error });
+      const score = _scoreReply(parsed.error, { step, keys: parsed.keys });
+      if (score.stop) return score.stop;
+      // Guider le LLM avec un message d'erreur explicite
+      messages.push({ role: 'assistant', content: rawText });
+      messages.push({ role: 'user', content: _formatFeedback(parsed.error) + (score.advice || '') });
 
       if (step >= maxSteps) break;
       continue;
@@ -881,6 +1004,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     onEvent({ type: 'tool_call', ...entry });
 
     messages.push({ role: 'assistant', content: rawText });
+    const outOfScope = !!strictTools && !strictTools.has(parsed.tool);
+    if (!outOfScope) _scoreReply(null);
 
     // ── Finish ───────────────────────────────────────────────────────────────
     if (parsed.tool === TOOLS.FINISH) {
@@ -940,7 +1065,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
 
       onEvent({ type: 'finish', summary });
-      logger.event(session.id, 'run_finish', { steps: trace.length, llm_calls: _llmCalls, unverified: !proof.ok, goal: activeGoal?.status ?? null });
+      logger.event(session.id, 'run_finish', { steps: trace.length, ..._counters(), unverified: !proof.ok, goal: activeGoal?.status ?? null });
       _cleanup();
       const result = {
         ok: true,
@@ -959,7 +1084,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
     // Refus des outils hors périmètre (sous-agent ou mode plan). Le modèle est
     // informé de la liste autorisée pour qu'il se corrige à l'étape suivante.
-    if (strictTools && !strictTools.has(parsed.tool)) {
+    if (outOfScope) {
       result = {
         ok: false,
         error: `OUTIL_HORS_PERIMETRE: "${parsed.tool}" n'est pas autorisé pour ce rôle. ` +
@@ -968,12 +1093,22 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       entry.result = result;
       _lastFailure = { tool: parsed.tool, error: 'OUTIL_HORS_PERIMETRE', step };
       onEvent({ type: 'tool_blocked', step, tool: parsed.tool });
+      const score = _scoreReply('OUTIL_HORS_PERIMETRE', { step });
+      if (score.stop) return score.stop;
       messages.push({
         role: 'user',
-        content: `OUTIL HORS PÉRIMÈTRE : ${result.error}`,
+        content: `OUTIL HORS PÉRIMÈTRE : ${result.error}${score.advice || ''}`,
       });
       if (step >= maxSteps) break;
       continue;
+    }
+
+    _pollRun = POLLING_TOOLS.has(parsed.tool) ? _pollRun + 1 : 0;
+    if (_pollRun >= POLL_DELAY_FROM) {
+      const delay = POLL_DELAYS_MS[Math.min(_pollRun - POLL_DELAY_FROM, POLL_DELAYS_MS.length - 1)];
+      _pollWaitMs += delay;
+      await (config._sleep || _pause)(delay, signal);
+      if (signal?.aborted) { step -= 1; continue; } // le début de boucle traite l'annulation
     }
 
     try {
@@ -1018,10 +1153,11 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
             _invalidateReadCache(parsed.args.dest);
           }
         }
-        // batch_replace peut toucher n'importe quel fichier — vider tout le cache
-        if (result.ok && parsed.tool === TOOLS.BATCH_REPLACE) {
+        // batch_replace et fix_loop peuvent toucher n'importe quel fichier — vider tout le cache
+        const written = _resultWrites(parsed.tool, result);
+        if (written.length > 0 || (result.ok && parsed.tool === TOOLS.BATCH_REPLACE)) {
           _readCache.clear();
-          for (const filePath of _batchWrites(parsed.tool, result)) {
+          for (const filePath of written) {
             _mods.set(filePath, step);
             _verified.delete(filePath);
           }
@@ -1059,9 +1195,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
     }
 
-    const batchWrites = result.ok ? _batchWrites(parsed.tool, result) : [];
-    if (batchWrites.length > 0) {
-      entry.verifiedFiles = batchWrites.map(filePath => _attestWrite(filePath, step)).filter(Boolean);
+    const reported = _resultWrites(parsed.tool, result);
+    if (reported.length > 0) {
+      entry.verifiedFiles = reported.map(filePath => _attestWrite(filePath, step)).filter(Boolean);
       for (const proof of entry.verifiedFiles) _verified.set(proof.path, step);
     }
 
@@ -1153,7 +1289,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     }
 
     if (entry.verifiedFiles?.length) {
-      resultMsg += `\n\n[vérification serveur : ${entry.verifiedFiles.length} fichier(s) relus après remplacement — inutile de les relire]`;
+      resultMsg += `\n\n[vérification serveur : ${entry.verifiedFiles.length} fichier(s) relus après modification — inutile de les relire]`;
     }
 
     // Nudge TDD : avancer la phase selon le résultat de run_tests
@@ -1206,10 +1342,26 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       }
     }
 
+    if (_pollRun >= POLL_STOP_AT) {
+      return _stopRun('ATTENTE_SANS_FIN', `Tâche arrêtée : ${_pollRun} consultations d'affilée sans autre action.`);
+    }
+    if (_pollRun === POLL_WARN_AT) {
+      resultMsg += `\n\n⚠️ ATTENTE : ${_pollRun} consultations d'affilée. Si rien ne démarre, lis la sortie une fois, corrige la cause, ou appelle finish en expliquant ce qui bloque.`;
+    }
+
+    const writes = _recordWrites(parsed, entry, result, step);
+    const sameFailures = _countFailure(parsed, result);
+    if (sameFailures >= SAME_FAILURE_STOP_AT) {
+      return _stopRun('ÉCHEC_RÉPÉTÉ', `Tâche arrêtée : ${parsed.tool} a échoué ${sameFailures} fois de la même façon malgré les modifications.`);
+    }
+    if (sameFailures === SAME_FAILURE_WARN_AT) {
+      resultMsg += `\n\n⚠️ ÉCHEC RÉPÉTÉ : ${parsed.tool} échoue pour la ${sameFailures}e fois de la même façon malgré tes changements. Relis l'erreur et le fichier qu'elle désigne avant de modifier à nouveau, ou appelle finish en expliquant ce qui bloque.`;
+    }
+
     // Stagnation : mesure le progrès, pas la répétition. Les outils d'attente et de dialogue
     // ne disent rien de l'avancement : ils ne comptent ni pour ni contre.
     if (!POLLING_TOOLS.has(parsed.tool) && !STAGNATION_NEUTRAL.has(parsed.tool)) {
-      if (_madeProgress(parsed, result)) {
+      if (_madeProgress(parsed, result, writes)) {
         _stagnation = 0;
       } else {
         _stagnation++;
@@ -1222,7 +1374,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           const failure = _lastFailure ? ` Dernier échec : ${_lastFailure.tool} (${_lastFailure.error}).` : '';
           resultMsg += `
 
-⚠️ STAGNATION : ${STAGNATION_WARN_AT} étapes sans progrès (aucune écriture réussie, aucun test vert, aucun résultat nouveau).${failure} Change d'approche : relis le fichier concerné en entier, élargis la recherche, ou appelle finish en expliquant ce qui bloque.`;
+⚠️ STAGNATION : ${STAGNATION_WARN_AT} étapes sans progrès (aucun contenu de fichier inédit, aucun test vert, aucun résultat nouveau).${failure} Change d'approche : relis le fichier concerné en entier, élargis la recherche, ou appelle finish en expliquant ce qui bloque.`;
         }
       }
     }
@@ -1263,7 +1415,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     } catch { /* objectif non persistable */ }
   }
 
-  logger.event(session.id, 'run_max_steps', { steps: trace.length, maxSteps, llm_calls: _llmCalls });
+  logger.event(session.id, 'run_max_steps', { steps: trace.length, maxSteps, ..._counters() });
   const failResult = { ok: false, error: 'MAX_STEPS_ATTEINT', trace, sessionId: session.id };
   if (!isSubAgent && sessionPath) updateSession(sessionPath, { steps: trace, result: failResult, scratchpad: scratchpad.toJSON() });
   return failResult;

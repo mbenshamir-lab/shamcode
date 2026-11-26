@@ -7,6 +7,7 @@
 const { execSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
+const { backupBeforeWrite } = require('../safety/backup');
 
 const FORMAT_TIMEOUT = 15000;
 
@@ -54,7 +55,7 @@ function _detectFormatter(relPath, projectRoot) {
  * @param {string} projectRoot
  * @returns {{ ok, formatter?, skipped?, error? }}
  */
-async function formatFile({ path: relPath }, guard, projectRoot) {
+async function formatFile({ path: relPath }, guard, projectRoot, config = {}) {
   if (!relPath) return { ok: false, error: 'CHEMIN_MANQUANT' };
   try {
     guard(relPath); // vérifie que le chemin est dans le projet
@@ -70,6 +71,9 @@ async function formatFile({ path: relPath }, guard, projectRoot) {
   if (!detected) {
     return { ok: true, skipped: true, reason: 'Aucun formateur disponible pour cette extension' };
   }
+
+  const unsaved = backupBeforeWrite(guard(relPath), config);
+  if (unsaved) return unsaved;
 
   try {
     execSync(detected.cmd, { cwd: projectRoot, timeout: FORMAT_TIMEOUT, stdio: 'ignore' });

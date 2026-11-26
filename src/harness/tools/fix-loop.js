@@ -98,6 +98,9 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
   const testCmd = args.command ? { command: args.command } : {};
 
   const history = [];
+  const modified = new Set();
+  // La preuve de fin doit connaître les écritures, que la boucle réussisse ou non
+  const done = result => ({ ...result, history, ...(modified.size ? { modified_files: [...modified] } : {}) });
 
   // Lazy require — évite la dépendance circulaire (fix-loop → tools/index → fix-loop)
   const { dispatch } = require('./index');
@@ -105,13 +108,13 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
   for (let iter = 1; iter <= maxIter; iter++) {
     // ── 1. Lancer les tests ──────────────────────────────────────────────────
     const testResult = await runTests(testCmd, projectRoot, { signal: config._signal });
-    if (testResult.error === 'ANNULÉ') return { ok: false, error: 'ANNULÉ', history };
+    if (testResult.error === 'ANNULÉ') return done({ ok: false, error: 'ANNULÉ' });
 
     if (testResult.exitCode === 0) {
-      return { ok: true, fixed: iter > 1, iterations: iter - 1, history };
+      return done({ ok: true, fixed: iter > 1, iterations: iter - 1 });
     }
     // Commande refusée ou introuvable : il n'y a aucun échec de test à corriger
-    if (testResult.exitCode === undefined) return { ok: false, error: testResult.error, history };
+    if (testResult.exitCode === undefined) return done({ ok: false, error: testResult.error });
 
     const failures = _summarizeFailures(testResult.stdout || testResult.error || '');
 
@@ -125,7 +128,7 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
     try {
       llmResponse = await llmGenerate(messages, { temperature: DEFAULT_TEMPERATURE, signal: config._signal });
     } catch (e) {
-      return { ok: false, error: `LLM_ERREUR: ${e.message}`, history };
+      return done({ ok: false, error: `LLM_ERREUR: ${e.message}` });
     }
 
     // ── 3. Parser et filtrer les tool calls ──────────────────────────────────
@@ -133,13 +136,13 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
 
     if (toolCalls.length === 0) {
       history.push({ iteration: iter, failures: failures.slice(0, 200), actions: [], note: 'aucun_outil' });
-      return { ok: false, error: 'AUCUN_OUTIL_SUGGÉRÉ', history };
+      return done({ ok: false, error: 'AUCUN_OUTIL_SUGGÉRÉ' });
     }
 
     // Détecter "unfixable"
     if (toolCalls.some(c => c.tool === 'finish')) {
       history.push({ iteration: iter, failures: failures.slice(0, 200), actions: [], note: 'non_corrigeable' });
-      return { ok: false, error: 'LLM_DÉCLARE_NON_CORRIGEABLE', history };
+      return done({ ok: false, error: 'LLM_DÉCLARE_NON_CORRIGEABLE' });
     }
 
     // ── 4. Appliquer les corrections ─────────────────────────────────────────
@@ -148,25 +151,30 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
       if (!ALLOWED_FIX_TOOLS.has(tool)) continue;
       const result = await dispatch(tool, toolArgs, guard, config, onEvent, projectRoot);
       actions.push({ tool, args: toolArgs, ok: result.ok, error: result.error });
+      if (result.ok) {
+        const written = tool === 'batch_replace'
+          ? (result.results || []).filter(r => r.modified).map(r => r.path)
+          : [toolArgs.path];
+        written.forEach(filePath => modified.add(filePath));
+      }
     }
 
     history.push({ iteration: iter, failures: failures.slice(0, 200), actions });
 
     if (actions.length === 0) {
-      return { ok: false, error: 'AUCUN_OUTIL_AUTORISÉ_UTILISÉ', history };
+      return done({ ok: false, error: 'AUCUN_OUTIL_AUTORISÉ_UTILISÉ' });
     }
   }
 
   // ── Dernière vérification après épuisement des itérations ────────────────
   const finalTest = await runTests(testCmd, projectRoot, { signal: config._signal });
   const allPassed = finalTest.exitCode === 0;
-  return {
+  return done({
     ok:         allPassed,
     fixed:      allPassed,
     iterations: maxIter,
-    history,
     ...(allPassed ? {} : { error: 'MAX_ITERATIONS_ATTEINT' }),
-  };
+  });
 }
 
 module.exports = { fixLoop, _extractAllToolCalls, _summarizeFailures };

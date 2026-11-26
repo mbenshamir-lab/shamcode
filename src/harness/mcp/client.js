@@ -139,7 +139,8 @@ class McpClient extends EventEmitter {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(body),
     };
-    if (auth) headers['Authorization'] = `Bearer ${auth}`;
+    // Le préfixe est parfois saisi avec le token : ne pas l'envoyer deux fois
+    if (auth) headers['Authorization'] = `Bearer ${String(auth).replace(/^\s*Bearer\s+/i, '')}`;
 
     return new Promise((resolve, reject) => {
       const lib = useHttps ? https : http;
