@@ -84,3 +84,57 @@ describe('stagnation — le vrai travail n\'est jamais coupé', () => {
     assert.equal(result.ok, true);
   });
 });
+
+describe('lecture groupée — read_file { paths }', () => {
+  const files = { 'a.js': 'const a = 1;\n', 'b.js': 'const b = 2;\n', 'c.js': 'const c = 3;\n' };
+
+  it('lire trois fichiers coûte un seul appel LLM', async () => {
+    const { result, calls, seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: ['a.js', 'b.js', 'c.js'] } } : null), files);
+    assert.equal(result.ok, true);
+    assert.equal(calls, 2); // la lecture, puis finish
+    for (const name of ['a.js', 'b.js', 'c.js']) assert.ok(seen[1].includes(`=== ${name}`), seen[1].slice(0, 200));
+    assert.ok(seen[1].includes('const c = 3;'));
+  });
+
+  it('une lecture groupée après écriture vaut preuve de relecture', async () => {
+    const script = [
+      { tool: 'write_file', args: { path: 'a.js', content: 'neuf' } },
+      { tool: 'read_file', args: { paths: ['a.js', 'b.js'] } },
+      { tool: 'finish', args: { summary: 'ok', checks: [{ kind: 'file', path: 'a.js' }] } },
+    ];
+    const events = [];
+    const result = await runAgent({ task: 't', projectRoot: project(files), config: {}, onEvent: e => events.push(e),
+      llmGenerate: (() => { let i = 0; return async () => JSON.stringify(script[i++]); })() });
+    assert.equal(result.ok, true);
+    assert.equal(events.filter(e => e.type === 'finish_rejected').length, 0);
+  });
+
+  it('un fichier absent n\'annule pas les autres', async () => {
+    const { seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: ['a.js', 'absent.js'] } } : null), files);
+    assert.ok(seen[1].includes('const a = 1;'));
+    assert.ok(seen[1].includes('absent.js — ERREUR'));
+  });
+
+  it('un chemin hors du projet reste refusé par le guard', async () => {
+    const { seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: ['../../etc/passwd'] } } : null), files);
+    assert.ok(seen[1].includes('AUCUN_FICHIER_LU'), seen[1].slice(0, 300));
+  });
+
+  it('plus de 8 chemins : refus explicite', async () => {
+    const many = Array.from({ length: 9 }, (_, i) => `f${i}.js`);
+    const { seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: many } } : null), files);
+    assert.ok(seen[1].includes('TROP_DE_FICHIERS'), seen[1].slice(0, 300));
+  });
+
+  it('chaque fichier reçoit sa part : un gros fichier n\'avale pas les suivants', async () => {
+    const big = { 'big.js': 'x'.repeat(30000), 'small.js': 'PETIT_FICHIER\n' };
+    const { seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: ['big.js', 'small.js'] } } : null), big);
+    assert.ok(seen[1].includes('PETIT_FICHIER'), 'le second fichier doit rester visible');
+    assert.ok(seen[1].includes('tronqué'));
+  });
+
+  it('paths vide ou mal typé : erreur claire, pas de plantage', async () => {
+    const { seen } = await run(n => (n === 1 ? { tool: 'read_file', args: { paths: [] } } : null), files);
+    assert.ok(/ARGUMENT_MANQUANT|PATHS_VIDE/.test(seen[1]), seen[1].slice(0, 300));
+  });
+});

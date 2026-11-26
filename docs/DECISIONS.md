@@ -388,3 +388,13 @@
 **Décision** : dans `agent.js`, `_madeProgress` classe chaque étape : progrès = écriture réussie, test vert, fichier jamais lu, ou résultat jamais montré (empreinte sha1). Un échec n'est jamais un progrès. `STAGNATION_WARN_AT` = 5 étapes consécutives sans progrès : message correctif nommant le dernier échec ; `STAGNATION_STOP_AT` = 10 : arrêt `STAGNATION_DÉTECTÉE` listant les outils essayés. `plan`, `goal`, `ask_user`, `scratchpad` et les outils d'attente (`POLLING_TOOLS`) sont neutres. `LOOP_STOP_AT` passe de 8 à 5. Les événements `run_finish`, `run_aborted`, `run_max_steps` et le nouveau `run_stopped` portent `llm_calls` (générations, reprises de parse comprises) ; `run_stopped` porte aussi `stagnation_stops`.
 **Conséquences** : les quatre scénarios s'arrêtent en 5 à 14 appels au lieu de 8 à 50. Une exploration de fichiers neufs ou un travail qui écrit n'est jamais coupé. Limite : un résultat nouveau mais inutile (ex. recherches dont l'écho change) compte comme progrès ; la relecture d'un fichier après compaction compte une fois comme résultat neuf.
 **Alternatives rejetées** : seuils par nombre total d'étapes seulement (ne distingue pas travail et stagnation) ; option de configuration (non demandée).
+
+---
+
+## ADR-040 : Lecture groupée — `read_file { paths }`
+
+**Date** : 2026-11-26
+**Contexte** : un tour de LLM par fichier lu ; chaque tour repaie le prompt système et la fenêtre. Option B de `docs/PROPOSITION_BOUCLE_AGENT.md`.
+**Décision** : `read_file` accepte `{ "paths": [...] }` (max 8) à la place de `path`. `fs.js` `readFiles` lit chaque fichier via `readFile` (donc `guard` et `.harnessignore`), renvoie `content` (blocs `=== chemin (N lignes) ===`) et `files[]` ; un échec partiel n'annule pas les autres, aucun fichier lu donne `AUCUN_FICHIER_LU`. `agent.js` passe à chaque fichier sa part du plafond de résultat (`_maxChars`, donc un gros fichier ne masque pas les suivants), et compte les fichiers lus avec succès pour la preuve de `finish` et la détection de stagnation. `validate.js` et le prompt (règle 6) acceptent la forme. Le contrat `{ path }` existant est inchangé.
+**Conséquences** : N lectures en 1 tour. La lecture groupée ne passe pas par le cache `read_file` (pas de « déjà lu »).
+**Alternatives rejetées** : lots d'appels génériques (option A : change le contrat du parser, risqué sous 3B).

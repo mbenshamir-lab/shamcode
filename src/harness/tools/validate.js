@@ -72,6 +72,8 @@ function _example(schema) {
 function validateArgs(toolName, args) {
   const schema = SCHEMAS[toolName];
   if (!schema) return { ok: true };
+  // read_file accepte une liste de chemins à la place d'un seul
+  if (toolName === 'read_file' && Array.isArray(args?.paths) && !args.path) return { ok: true };
 
   const value = args && typeof args === 'object' ? args : {};
 

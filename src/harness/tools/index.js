@@ -12,7 +12,7 @@
 const { TOOLS } = require('../../shared/constants');
 const { validateArgs } = require('./validate');
 const { goalTool } = require('./goal');
-const { readFile, writeFile, replaceCode, listDir, deleteFile, moveFile } = require('./fs');
+const { readFile, readFiles, writeFile, replaceCode, listDir, deleteFile, moveFile } = require('./fs');
 const { findSymbol } = require('./symbols-search');
 const { runTests }       = require('./test-runner');
 const { getProjectInfo } = require('./project-info');
@@ -87,7 +87,9 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
       return { ok: true };
     }
     case TOOLS.READ_FILE:
-      return readFile(args, guard, projectRoot);
+      return Array.isArray(args?.paths) && !args.path
+        ? readFiles(args, guard, projectRoot)
+        : readFile(args, guard, projectRoot);
     case TOOLS.WRITE_FILE:
       return writeFile(args, guard, { ...config, _guard: guard, _projectRoot: projectRoot }, onEvent);
     case TOOLS.REPLACE_CODE:

@@ -92,6 +92,52 @@ function readFile({ path: relPath, start_line, end_line }, guard, projectRoot = 
   }
 }
 
+const MAX_PATHS_PER_READ = 8;
+
+/**
+ * Lit plusieurs fichiers en un seul appel : un tour de LLM au lieu d'un par fichier.
+ * Chaque fichier passe par readFile (donc par le guard et .harnessignore) ; un échec
+ * partiel n'annule pas les autres. Chaque fichier reçoit sa part du budget pour qu'un
+ * gros fichier n'avale pas les suivants.
+ *
+ * @param {{ paths: string[], _maxChars?: number }} args
+ * @returns {{ ok: boolean, content?: string, total_lines?: number, files?: object[], error?: string }}
+ */
+function readFiles({ paths, _maxChars }, guard, projectRoot = '') {
+  const unique = [...new Set((Array.isArray(paths) ? paths : []).map(p => String(p).trim()).filter(Boolean))];
+  if (unique.length === 0) return { ok: false, error: 'PATHS_VIDE: "paths" doit lister au moins un fichier' };
+  if (unique.length > MAX_PATHS_PER_READ) {
+    return { ok: false, error: `TROP_DE_FICHIERS: ${unique.length} chemins, maximum ${MAX_PATHS_PER_READ} par appel — scinde en plusieurs read_file` };
+  }
+  const perFile = Number(_maxChars) > 0 ? Number(_maxChars) : 0;
+  const files = [];
+  const blocks = [];
+  let total = 0;
+  for (const rel of unique) {
+    const r = readFile({ path: rel }, guard, projectRoot);
+    if (!r.ok) {
+      files.push({ path: rel, ok: false, error: r.error });
+      blocks.push(`=== ${rel} — ERREUR ===\n${r.error}`);
+      continue;
+    }
+    const cut = perFile > 0 && r.content.length > perFile;
+    let body = r.content;
+    if (cut) {
+      const kept = r.content.slice(0, perFile);
+      const nextLine = kept.split('\n').length;
+      body = `${kept}\n[… tronqué — suite : read_file { "path": "${rel}", "start_line": ${nextLine} }]`;
+    }
+    total += r.total_lines;
+    files.push({ path: rel, ok: true, total_lines: r.total_lines, ...(cut ? { truncated: true } : {}) });
+    blocks.push(`=== ${rel} (${r.total_lines} lignes) ===\n${body}`);
+  }
+  if (!files.some(f => f.ok)) {
+    const detail = files.map(f => `${f.path} (${f.error})`).join(' ; ');
+    return { ok: false, error: `AUCUN_FICHIER_LU: ${detail}`, files };
+  }
+  return { ok: true, content: blocks.join('\n\n'), total_lines: total, files };
+}
+
 /**
  * Écrit/crée un fichier (crée les dossiers parents si besoin).
  * Si config.requestApproval est fourni, attend l'accord de l'utilisateur.
@@ -376,4 +422,4 @@ async function moveFile({ path: relSrc, dest: relDest }, guard, config = {}, onE
   }
 }
 
-module.exports = { readFile, writeFile, replaceCode, listDir, deleteFile, moveFile };
+module.exports = { readFile, readFiles, writeFile, replaceCode, listDir, deleteFile, moveFile };

@@ -208,7 +208,7 @@ RÈGLES NON NÉGOCIABLES :
 ${planRule}
 5. Ne lis QUE les fichiers directement liés à la solution — jamais un scan général du projet.
    Si AGENTS.md est injecté ci-dessous, il te donne l'architecture et les conventions : sers-t'en pour naviguer.
-6. Lis un fichier entier avant de le modifier (read_file sur le fichier cible uniquement).
+6. Lis un fichier entier avant de le modifier (read_file sur le fichier cible uniquement). Plusieurs fichiers à lire : un seul read_file avec "paths" (max 8) plutôt qu'un appel par fichier.
 7. Utilise replace_code avec un old_string EXACT (copié du fichier lu).
 8. Ne termine JAMAIS par finish avant que la tâche soit vérifiée et complète. Le serveur relit et hashe chaque fichier écrit : si le résultat indiquait « vérification serveur », finish peut omettre "checks". Sinon, liste les preuves : chaque fichier relu ({"kind":"file","path":"…"}) et/ou un test lancé ({"kind":"test","command":"npm test","result":"pass"}).
 9. N'ouvre pas un tour de read_file pour relire un fichier que tu viens d'écrire : la vérification après write_file ou replace_code est faite par le serveur (hash + nombre de lignes) et annoncée dans le résultat. Ne le relis que si tu dois y faire une autre modification.

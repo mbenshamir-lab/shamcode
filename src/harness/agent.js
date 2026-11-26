@@ -227,7 +227,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   const allToolDefs = {
     plan:         'plan         — args: { "objective": "1 ligne ≤ 90 car.", "goals": ["3-4 max, ≤ 60 car."], "steps": ["3-6 max, ≤ 70 car., verbe à l\'infinitif"] }  — briefe l\'utilisateur sur ce que tu as compris et ce que tu vas faire (intent = « tu veux… / je vais… »). À utiliser librement selon la complexité de la tâche.',
     goal:         'goal         — objectif persistant : { "action": "set", "objective": "...", "source": "citation de la demande", "criteria": [{ "text": "...", "verify": { "kind": "test|file|command", "command"?: "...", "path"?: "..." } }] } | { "action": "status", "criterion_id": "c1", "status": "met", "evidence": { "kind": "...", "command"?: "...", "path"?: "..." } } | { "action": "decide", "class": "D0|D1|D2|D3", "question": "...", "choice": "...", "rationale": "...", "approved"?: true } | { "action": "plan|close|block|get", ... }. Un finish avec critère non prouvé est refusé.',
-    read_file:    'read_file    — args: { "path": "...", "start_line"?: N, "end_line"?: N }  — lit un fichier (ou une plage de lignes)',
+    read_file:    'read_file    — args: { "path": "...", "start_line"?: N, "end_line"?: N } ou { "paths": ["a.js","b.js"] } (max 8)  — lit un fichier, une plage de lignes, ou plusieurs fichiers en un seul appel',
     write_file:   'write_file   — args: { "path": "...", "content": "..." }  — écrit/crée un fichier',
     replace_code: 'replace_code — args: { "path": "...", "old_string": "...", "new_string": "..." }  — remplace une chaîne exacte',
     list_dir:     'list_dir     — args: { "path": "...", "recursive"?: true, "depth"?: N }  — liste un dossier (récursif optionnel, depth max 5)',
@@ -556,6 +556,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
   const _normPath = (p) => path.posix.normalize(String(p).replace(/\\/g, '/'));
 
+  /** Fichiers réellement lus par un appel read_file, y compris en lecture groupée. */
+  const _readTargets = (entry) => {
+    if (Array.isArray(entry.result?.files)) return entry.result.files.filter(f => f.ok).map(f => _normPath(f.path));
+    return entry.args?.path ? [_normPath(entry.args.path)] : [];
+  };
+
   const _modEntries = () => trace.filter(entry => modTools.has(entry.tool) && entry.result?.ok);
 
   /**
@@ -589,7 +595,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     // Écriture attestée par le serveur à l'étape même de la modification
     if (last.verified?.sha1) return true;
     return trace.some(e => e.tool === TOOLS.READ_FILE && e.result?.ok && e.step > last.step &&
-      _normPath(e.args?.path) === target);
+      _readTargets(e).includes(target));
   };
 
   const _testProven = (check) => {
@@ -721,9 +727,13 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     _seenResults.add(fingerprint);
     if (modTools.has(call.tool)) return true;
     if ((call.tool === TOOLS.RUN_TESTS || call.tool === TOOLS.FIX_LOOP) && res.exitCode === 0) return true;
-    if (call.tool === TOOLS.READ_FILE && call.args?.path) {
-      const target = _normPath(call.args.path);
-      if (!_readPaths.has(target)) { _readPaths.add(target); return true; }
+    if (call.tool === TOOLS.READ_FILE) {
+      const fresh = (Array.isArray(res.files)
+        ? res.files.filter(f => f.ok).map(f => _normPath(f.path))
+        : call.args?.path ? [_normPath(call.args.path)] : [])
+        .filter(target => !_readPaths.has(target));
+      fresh.forEach(target => _readPaths.add(target));
+      if (fresh.length > 0) return true;
     }
     return unseen;
   };
@@ -981,7 +991,18 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         _reads.set(String(parsed.args.path), step);
         if (_mods.has(String(parsed.args.path))) _verified.set(String(parsed.args.path), step);
       } else {
-        result = await dispatch(parsed.tool, parsed.args, guard, config, onEvent, projectRoot, mcpRegistry);
+        // Lecture groupée : chaque fichier reçoit sa part du plafond de résultat
+        const multiRead = parsed.tool === TOOLS.READ_FILE && Array.isArray(parsed.args?.paths) && !parsed.args.path;
+        const dispatchArgs = multiRead
+          ? { ...parsed.args, _maxChars: Math.floor(resultLimit / Math.max(1, parsed.args.paths.length)) }
+          : parsed.args;
+        result = await dispatch(parsed.tool, dispatchArgs, guard, config, onEvent, projectRoot, mcpRegistry);
+        if (multiRead && Array.isArray(result.files)) {
+          for (const f of result.files.filter(file => file.ok)) {
+            _reads.set(String(f.path), step);
+            if (_mods.has(String(f.path))) _verified.set(String(f.path), step);
+          }
+        }
         // Invalider le cache si le fichier vient d'être modifié
         if (result.ok && parsed.args?.path &&
             (parsed.tool === TOOLS.WRITE_FILE || parsed.tool === TOOLS.REPLACE_CODE ||
