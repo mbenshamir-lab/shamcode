@@ -398,3 +398,16 @@
 **Décision** : `read_file` accepte `{ "paths": [...] }` (max 8) à la place de `path`. `fs.js` `readFiles` lit chaque fichier via `readFile` (donc `guard` et `.harnessignore`), renvoie `content` (blocs `=== chemin (N lignes) ===`) et `files[]` ; un échec partiel n'annule pas les autres, aucun fichier lu donne `AUCUN_FICHIER_LU`. `agent.js` passe à chaque fichier sa part du plafond de résultat (`_maxChars`, donc un gros fichier ne masque pas les suivants), et compte les fichiers lus avec succès pour la preuve de `finish` et la détection de stagnation. `validate.js` et le prompt (règle 6) acceptent la forme. Le contrat `{ path }` existant est inchangé.
 **Conséquences** : N lectures en 1 tour. La lecture groupée ne passe pas par le cache `read_file` (pas de « déjà lu »).
 **Alternatives rejetées** : lots d'appels génériques (option A : change le contrat du parser, risqué sous 3B).
+
+---
+
+## ADR-041 : Protection des secrets et des tokens d'API
+
+**Date** : 2026-11-26
+**Contexte** : seules les clés des moteurs étaient chiffrées sur disque ; celles des fournisseurs personnalisés, les `apiTokens` et l'authentification MCP étaient en clair. Les renderers recevaient toutes les clés déchiffrées, et `call_api` envoyait un token à n'importe quelle URL choisie par le modèle. Proposition : `docs/PROPOSITION_SECRETS.md`, validée en entier.
+**Décision** :
+1. `config.apiTokenHosts { nom: [domaines] }` : `call_api` n'envoie un token qu'à un domaine déclaré, en HTTPS (HTTP vers localhost seulement), sans suivre les redirections. Un token sans domaine est refusé. `apiTokens` garde son format.
+2. `safe-keys.js` chiffre aussi `customProviders[].apiKey`, `apiTokens` (`apiTokensEncrypted`) et `connectors[].auth`. Migration à la première sauvegarde. Un secret indéchiffrable garde sa forme chiffrée. Si `safeStorage` est inopérant : repli base64 conservé, avec un avertissement dans les Paramètres.
+3. `main/public-config.js` : `config:get` et `config:updated` ne portent plus aucun secret, seulement `hasKey` / `hasAuth` / `apiTokensSaved`. `config:set` fusionne (fournisseurs et connecteurs par `id`, tokens par nom, `apiTokenRenames` pour un renommage) : champ vide ou absent = inchangé, entrée retirée = secret supprimé. `models:list` accepte `providerId` et n'envoie alors la clé enregistrée qu'à l'URL enregistrée.
+**Conséquences** : les tokens existants sont refusés tant qu'aucun domaine n'est saisi. Une version antérieure de l'application ne relit pas les secrets nouvellement chiffrés. La CLI reste en clair (pas de `safeStorage`). Limite : le masquage retire les clés des renderers, mais un renderer compromis peut encore modifier l'URL de base d'un moteur ou d'un fournisseur et y faire envoyer la clé enregistrée.
+**Alternatives rejetées** : approbation à chaque usage d'un token (sans effet en mode Action) ; premier domaine mémorisé (le premier appel peut être le piège) ; valeur factice côté interface (sauvegardée par erreur, elle détruit la clé).

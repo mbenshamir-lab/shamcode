@@ -284,8 +284,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     remove_skill:         'remove_skill         — args: { "name": "..." }  — DIRECTIVE CONFIGURATION : désinstalle un skill par son nom exact (déclencheurs : « désinstalle le skill », « retire le module »…). Appeler SANS plan préalable, puis finish.',
     call_api: (() => {
       const keys = Object.keys(config.apiTokens || {});
+      const hostsOf = k => (config.apiTokenHosts?.[k] || []).join(', ') || 'aucun domaine : inutilisable';
       const tokensInfo = keys.length
-        ? `Tokens disponibles : ${keys.map(k => `"${k}"`).join(', ')}.`
+        ? `Tokens disponibles, chacun pour ses seuls domaines : ${keys.map(k => `"${k}" (${hostsOf(k)})`).join(', ')}.`
         : 'Aucun token configuré (ajouter dans Paramètres > Connecteurs > Tokens API).';
       return `call_api — args: { "url": "https://...", "method"?: "GET|POST|PUT|PATCH|DELETE", "body"?: {...}, "token_key"?: "<nom>", "headers"?: {} } — Appelle une API REST externe et retourne la réponse JSON. token_key référence un token stocké dans la config (jamais le token brut dans les args). ${tokensInfo}`;
     })(),
@@ -562,7 +563,19 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     return entry.args?.path ? [_normPath(entry.args.path)] : [];
   };
 
-  const _modEntries = () => trace.filter(entry => modTools.has(entry.tool) && entry.result?.ok);
+  // batch_replace ne nomme pas ses fichiers dans ses arguments : ils sont dans son résultat
+  const _batchWrites = (tool, result) => (tool === TOOLS.BATCH_REPLACE
+    ? (result?.results || []).filter(r => r.modified).map(r => r.path)
+    : []);
+
+  /** Fichiers touchés par une entrée de trace réussie. */
+  const _entryPaths = (entry) => {
+    if (entry.tool === TOOLS.BATCH_REPLACE) return _batchWrites(entry.tool, entry.result);
+    if (!modTools.has(entry.tool)) return [];
+    return [entry.args?.path, entry.tool === TOOLS.MOVE_FILE ? entry.args?.dest : null].filter(Boolean);
+  };
+
+  const _modEntries = () => trace.filter(entry => entry.result?.ok && _entryPaths(entry).length > 0);
 
   /**
    * Preuve serveur d'une écriture : relit le fichier, en atteste le hash et le nombre
@@ -586,14 +599,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
 
   const _fileProven = (filePath) => {
     const target = _normPath(filePath);
-    const last = _modEntries().filter(e =>
-      _normPath(e.args?.path) === target ||
-      (e.tool === TOOLS.MOVE_FILE && _normPath(e.args?.dest) === target)).pop();
+    const last = _modEntries().filter(e => _entryPaths(e).some(p => _normPath(p) === target)).pop();
     if (!last) return false;
     // Suppression : plus rien à relire. Déplacement : le contenu n'a pas changé.
     if (last.tool === TOOLS.DELETE_FILE || last.tool === TOOLS.MOVE_FILE) return true;
     // Écriture attestée par le serveur à l'étape même de la modification
-    if (last.verified?.sha1) return true;
+    if (last.verified?.sha1 || last.verifiedFiles?.some(v => v.path === target)) return true;
     return trace.some(e => e.tool === TOOLS.READ_FILE && e.result?.ok && e.step > last.step &&
       _readTargets(e).includes(target));
   };
@@ -606,13 +617,7 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   };
 
   const _modifiedPaths = () => {
-    const paths = new Set();
-    for (const entry of trace) {
-      if (!modTools.has(entry.tool) || !entry.result?.ok) continue;
-      if (entry.args?.path) paths.add(String(entry.args.path));
-      if (entry.tool === TOOLS.MOVE_FILE && entry.args?.dest) paths.add(String(entry.args.dest));
-    }
-    return [...paths];
+    return [...new Set(_modEntries().flatMap(entry => _entryPaths(entry).map(String)))];
   };
 
   const _checkFinishProof = (args) => {
@@ -1016,7 +1021,10 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         // batch_replace peut toucher n'importe quel fichier — vider tout le cache
         if (result.ok && parsed.tool === TOOLS.BATCH_REPLACE) {
           _readCache.clear();
-          _mods.set('(batch_replace)', step);
+          for (const filePath of _batchWrites(parsed.tool, result)) {
+            _mods.set(filePath, step);
+            _verified.delete(filePath);
+          }
         }
       }
     } catch (err) {
@@ -1049,6 +1057,12 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         entry.verified = attestation;
         _verified.set(String(parsed.args.path), step);
       }
+    }
+
+    const batchWrites = result.ok ? _batchWrites(parsed.tool, result) : [];
+    if (batchWrites.length > 0) {
+      entry.verifiedFiles = batchWrites.map(filePath => _attestWrite(filePath, step)).filter(Boolean);
+      for (const proof of entry.verifiedFiles) _verified.set(proof.path, step);
     }
 
     // Le modèle a inventé un nom d'outil : lui donner la carte des familles plutôt
@@ -1136,6 +1150,10 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
         const warns = result.secretWarnings.map(w => `ligne ${w.line} (${w.label})`).join(', ');
         resultMsg += `\n\n⚠️ SECRET POTENTIEL DÉTECTÉ dans le fichier écrit : ${warns}. Vérifie que ce n'est pas une vraie clé API ou un mot de passe.`;
       }
+    }
+
+    if (entry.verifiedFiles?.length) {
+      resultMsg += `\n\n[vérification serveur : ${entry.verifiedFiles.length} fichier(s) relus après remplacement — inutile de les relire]`;
     }
 
     // Nudge TDD : avancer la phase selon le résultat de run_tests

@@ -77,7 +77,7 @@ class LspClient {
     this._buf     = Buffer.alloc(0);
     this._nextId  = 1;
     this._pending = new Map();   // id → { resolve, reject, timer }
-    this._opened  = new Set();   // URIs already sent didOpen
+    this._opened  = new Map();   // URI envoyée par didOpen → { absPath, text, version }
     this._ready   = false;
     this._dead    = false;
     this._initP   = null;
@@ -210,13 +210,35 @@ class LspClient {
   // ── didOpen ────────────────────────────────────────────────────────────────
 
   _openDoc(uri, absPath, langId) {
+    this._syncDocs();
     if (this._opened.has(uri)) return;
-    this._opened.add(uri);
     let text = '';
     try { text = fs.readFileSync(absPath, 'utf8'); } catch { /* fichier illisible */ }
+    this._opened.set(uri, { absPath, text, version: 1 });
     this._notify('textDocument/didOpen', {
       textDocument: { uri, languageId: langId, version: 1, text },
     });
+  }
+
+  // Le serveur se fie au contenu reçu à l'ouverture, et les outils d'écriture ne le
+  // préviennent pas : on compare avec le disque avant chaque requête
+  _syncDocs() {
+    for (const [uri, doc] of this._opened) {
+      let text;
+      try { text = fs.readFileSync(doc.absPath, 'utf8'); }
+      catch {
+        this._opened.delete(uri);
+        this._notify('textDocument/didClose', { textDocument: { uri } });
+        continue;
+      }
+      if (text === doc.text) continue;
+      doc.text = text;
+      doc.version += 1;
+      this._notify('textDocument/didChange', {
+        textDocument: { uri, version: doc.version },
+        contentChanges: [{ text }],
+      });
+    }
   }
 
   // ── Outils publics ─────────────────────────────────────────────────────────

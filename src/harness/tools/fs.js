@@ -8,7 +8,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { snapshot }          = require('../safety/backup');
+const { backupBeforeWrite: _backup } = require('../safety/backup');
 const { buildWritePreview } = require('../safety/diff');
 const { getIgnore } = require('../safety/harnessignore');
 const { formatFile } = require('./formatter');
@@ -62,13 +62,6 @@ const IGNORED_ERROR = 'FICHIER_IGNORÉ: ce fichier est exclu par .harnessignore'
 function _isIgnored(abs, projectRoot) {
   if (!projectRoot) return false;
   return getIgnore(projectRoot).isIgnored(path.relative(path.resolve(projectRoot), abs));
-}
-
-/** Sauvegarde avant modification ; sans copie de secours, on ne touche pas au fichier. */
-function _backup(abs, config) {
-  if (config.backupBeforeWrite === false) return null;
-  const saved = snapshot(abs, config.maxBackups);
-  return saved.ok ? null : { ok: false, error: `BACKUP_ÉCHOUÉ: ${saved.error}` };
 }
 
 /**

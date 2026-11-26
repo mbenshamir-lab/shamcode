@@ -3,6 +3,7 @@ const https = require('https');
 const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
+const { backupBeforeWrite } = require('../safety/backup');
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 
@@ -27,6 +28,9 @@ async function generateImage(args, guard, projectRoot, config) {
 
   try {
     const imgData = await _customImageGenerate(args, cp.apiKey, cp.baseUrl, cp.model);
+
+    const unsaved = backupBeforeWrite(outPath, config);
+    if (unsaved) return unsaved;
 
     if (imgData.base64) {
       fs.writeFileSync(outPath, Buffer.from(imgData.base64, 'base64'));

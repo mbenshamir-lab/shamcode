@@ -3,6 +3,7 @@ const https = require('https');
 const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
+const { backupBeforeWrite } = require('../safety/backup');
 
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS  = 300_000; // 5 min max
@@ -29,6 +30,9 @@ async function generateVideo(args, guard, projectRoot, config) {
 
   try {
     const videoData = await _customVideoGenerate(args, cp.apiKey, cp.baseUrl, cp.model);
+
+    const unsaved = backupBeforeWrite(outPath, config);
+    if (unsaved) return unsaved;
 
     if (videoData.url) {
       await _downloadBinary(videoData.url, outPath);

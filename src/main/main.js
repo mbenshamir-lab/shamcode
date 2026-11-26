@@ -83,6 +83,7 @@ if (!app.isPackaged) {
 const { createWindows } = require('./windows');
 const { registerIpcHandlers } = require('./ipc');
 const { loadConfig } = require('./config');
+const { stopAll } = require('../harness/tools/process-runner');
 
 // WebGPU — CRITIQUE : doit être appelé avant app.ready
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
@@ -116,6 +117,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', (e) => {
+  // Ici et non sur will-quit : app.exit() ci-dessous n'émet plus aucun événement
+  stopAll();
   if (_hiddenWin && !_hiddenWin.isDestroyed()) {
     e.preventDefault();
     _hiddenWin.webContents.send(IPC.LLM_UNLOAD);

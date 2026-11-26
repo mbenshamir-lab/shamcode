@@ -128,6 +128,8 @@
     <!-- Panneaux -->
     <div class="sm-panels">
 
+      <p id="sm-secrets-warning" class="sm-hint sm-hint-danger sm-hidden">⚠ Chiffrement système indisponible : les clés et tokens sont enregistrés encodés (base64), pas chiffrés.</p>
+
       <!-- ─── ONGLET MODÈLE ──────────────────────────────────────────── -->
       <div class="sm-panel active" id="sm-panel-model">
 
@@ -522,7 +524,7 @@
           <span class="sm-section-label">Tokens API</span>
           <button id="sm-add-token" type="button" class="sm-btn sm-btn-ghost sm-btn-xs">+ Ajouter</button>
         </div>
-        <p class="sm-hint">Chaque token est stocké chiffré. L'agent y accède via son nom (ex : <code>"github"</code>, <code>"jira"</code>) — jamais la valeur brute.</p>
+        <p class="sm-hint">Chaque token est stocké chiffré. L'agent y accède via son nom (ex : <code>"github"</code>, <code>"jira"</code>) — jamais la valeur brute. Il n'est envoyé qu'aux domaines autorisés : sans domaine, il est refusé.</p>
         <div id="sm-tokens-list" class="sm-tokens-list"></div>
 
         <div id="sm-conn-form" class="sm-conn-form sm-hidden">

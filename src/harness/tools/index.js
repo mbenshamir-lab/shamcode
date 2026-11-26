@@ -181,7 +181,7 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.BROWSER_NAVIGATE:
       return browserNavigate(args);
     case TOOLS.BROWSER_SCREENSHOT:
-      return browserScreenshot(args, guard, projectRoot);
+      return browserScreenshot(args, guard, projectRoot, config);
     case TOOLS.BROWSER_CLICK:
       return browserClick(args);
     case TOOLS.BROWSER_TYPE:
@@ -221,9 +221,9 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.GENERATE_IMAGE:
       return generateImage(args, guard, projectRoot, config);
     case TOOLS.MERGE_VIDEOS:
-      return mergeVideos(args, guard, projectRoot);
+      return mergeVideos(args, guard, projectRoot, config);
     case TOOLS.GENERATE_SPEECH:
-      return generateSpeech(args, guard, projectRoot);
+      return generateSpeech(args, guard, projectRoot, config);
     case TOOLS.LIST_SPEECH_VOICES:
       return listSpeechVoices();
     case TOOLS.LSP_HOVER:

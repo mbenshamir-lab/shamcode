@@ -73,4 +73,16 @@ function snapshot(absPath, maxBackups = 50) {
   return { ok: true, dest };
 }
 
-module.exports = { snapshot, fileKey, getBackupDir };
+/**
+ * Sauvegarde exigée avant d'écraser un fichier : sans copie de secours, on n'écrit pas.
+ * @param {string} absPath
+ * @param {{ backupBeforeWrite?: boolean, maxBackups?: number }} [config]
+ * @returns {{ ok: false, error: string } | null} un refus, ou null si la voie est libre
+ */
+function backupBeforeWrite(absPath, config = {}) {
+  if (config.backupBeforeWrite === false) return null;
+  const saved = snapshot(absPath, config.maxBackups);
+  return saved.ok ? null : { ok: false, error: `BACKUP_ÉCHOUÉ: ${saved.error}` };
+}
+
+module.exports = { snapshot, backupBeforeWrite, fileKey, getBackupDir };

@@ -64,7 +64,7 @@ test('deploy — vercel.json détecté → plateforme vercel', async () => {
     const r = await deployProject(
       { command: 'node -e "process.exit(1)"', build_first: false, timeout: 10 },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     // La plateforme doit être détectée même si le déploiement échoue
     assert.equal(r.ok, false);
@@ -80,7 +80,7 @@ test('deploy — netlify.toml détecté → pipeline reconnu', async () => {
     const r = await deployProject(
       { command: 'node -e "process.exit(1)"', build_first: false, timeout: 10 },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     assert.equal(r.ok, false);
     assert.ok(r.error.includes('DEPLOY_ÉCHOUÉ'));
@@ -119,7 +119,7 @@ test('deploy — commande custom réussite → ok true + output', async () => {
     const r = await deployProject(
       { command: 'node -e "console.log(\'deploy ok\')"', build_first: false, timeout: 15 },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     assert.equal(r.ok, true);
     assert.ok(r.output.includes('deploy ok'));
@@ -134,7 +134,7 @@ test('deploy — commande custom échouée → ok false + DEPLOY_ÉCHOUÉ', asyn
     const r = await deployProject(
       { command: 'node -e "process.exit(2)"', build_first: false, timeout: 15 },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     assert.equal(r.ok, false);
     assert.ok(r.error.includes('DEPLOY_ÉCHOUÉ'));
@@ -156,7 +156,7 @@ test('deploy — URL Vercel extraite de la sortie', async () => {
         timeout: 15,
       },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     assert.equal(r.ok, true);
     assert.ok(r.url, 'url doit être présente');
@@ -174,7 +174,7 @@ test('deploy — build_first:false ignore le build même si buildCmd existe', as
     const r = await deployProject(
       { command: 'node -e "console.log(\'ok\')"', build_first: false, timeout: 15 },
       dir,
-      { enableDeploy: true },
+      { enableDeploy: true, enableShell: true },
     );
     assert.equal(r.ok, true);
     assert.ok(!r.output.includes('[build]'), 'Pas de phase build dans la sortie');

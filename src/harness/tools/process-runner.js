@@ -177,6 +177,13 @@ function stopProcess(args = {}) {
   return { ok: true, name, stopped: true };
 }
 
+/** Arrête tous les processus actifs : orphelin, un serveur de dev garderait son port. */
+function stopAll() {
+  for (const entry of _store.values()) {
+    if (entry.status === 'running') stopProcess({ name: entry.name, force: true });
+  }
+}
+
 /**
  * Retourne les dernières lignes de sortie.
  * @param {{ name, lines? }} args
@@ -225,4 +232,4 @@ function listAll() {
   }));
 }
 
-module.exports = { startProcess, stopProcess, getOutput, listProcesses, addListener, removeListener, listAll };
+module.exports = { startProcess, stopProcess, stopAll, getOutput, listProcesses, addListener, removeListener, listAll };

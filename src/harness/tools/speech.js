@@ -3,13 +3,14 @@ const { spawn } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
+const { backupBeforeWrite } = require('../safety/backup');
 
 /**
  * Génère un fichier audio WAV depuis un texte via Windows SAPI (Text-To-Speech intégré).
  * Fonctionne hors-ligne, gratuit, aucune dépendance npm.
  * Voix disponibles selon la langue du système Windows (ex : Zira, David, Aria).
  */
-async function generateSpeech(args, guard, projectRoot) {
+async function generateSpeech(args, guard, projectRoot, config = {}) {
   const text = String(args.text || '').trim();
   if (!text) return { ok: false, error: 'TEXTE_MANQUANT — args.text est obligatoire' };
 
@@ -48,6 +49,9 @@ ${text.replace(/(['\u2018\u2019\u201A\u201B])@/g, '$1 @')}
 '@)
 $tts.Dispose()
 `;
+
+  const unsaved = backupBeforeWrite(outPath, config);
+  if (unsaved) return unsaved;
 
   // BOM : sans lui, Windows PowerShell lit le script en ANSI et déforme les accents
   fs.writeFileSync(scriptPath, `\uFEFF${psScript}`, 'utf8');

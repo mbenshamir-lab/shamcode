@@ -3,13 +3,14 @@ const { spawn } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
+const { backupBeforeWrite } = require('../safety/backup');
 
 /**
  * Fusionne plusieurs clips vidéo en un seul fichier via ffmpeg.
  * ffmpeg doit être installé et accessible dans le PATH système.
  * Installation Windows : winget install ffmpeg
  */
-async function mergeVideos(args, guard, projectRoot) {
+async function mergeVideos(args, guard, projectRoot, config = {}) {
   const inputs = Array.isArray(args.inputs) ? args.inputs : [];
   if (inputs.length < 2) {
     return { ok: false, error: 'INPUTS_MANQUANTS — args.inputs doit contenir au moins 2 chemins de clips' };
@@ -32,6 +33,9 @@ async function mergeVideos(args, guard, projectRoot) {
     if (!inputPaths[i]) return { ok: false, error: `CHEMIN_INVALIDE pour l'entrée ${i + 1}` };
     if (!fs.existsSync(inputPaths[i])) return { ok: false, error: `FICHIER_MANQUANT : ${inputs[i]}` };
   }
+
+  const unsaved = backupBeforeWrite(outPath, config);
+  if (unsaved) return unsaved;
 
   // Fichier liste pour le demuxer concat de ffmpeg
   const listPath = path.join(os.tmpdir(), `sc_concat_${Date.now()}.txt`);

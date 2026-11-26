@@ -151,7 +151,7 @@ describe('_buildRouter — génération réelle via le fournisseur', () => {
 describe('Pastille de modèle — sélection d\'un fournisseur secondaire', () => {
   it('expose _activeProviderOf et ignore un fournisseur incomplet', () => {
     assert.match(appSrc, /function _activeProviderOf\(cfg\)/);
-    assert.match(appSrc, /p\.id === id && p\.baseUrl && p\.apiKey/);
+    assert.match(appSrc, /p\.id === id && p\.baseUrl && p\.hasKey/);
   });
 
   it('la sélection écrit activeProvider (le moteur change réellement)', () => {
@@ -170,7 +170,7 @@ describe('Pastille de modèle — sélection d\'un fournisseur secondaire', () =
   it('la barre de statut reflète le fournisseur actif', () => {
     // Les moteurs locaux (webllm/cpu) n'exigent pas de clé : le ternaire a été
     // étendu (ADR-033/phase 118) — le fournisseur actif reste prioritaire.
-    assert.match(appSrc, /const hasKey = active \? !!active\.apiKey : \(localEngine \|\| !!/);
+    assert.match(appSrc, /const hasKey = active \? !!active\.hasKey : \(localEngine \|\| !!/);
   });
 
   it('le modèle actif est marqué dans le groupe du fournisseur sélectionné', () => {

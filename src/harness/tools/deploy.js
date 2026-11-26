@@ -11,6 +11,7 @@
 const fs          = require('fs');
 const path        = require('path');
 const { exec }    = require('child_process');
+const { approveCommand, _isBlocked } = require('./shell');
 
 const MAX_DEPLOY_TIMEOUT_MS = 300_000; // 5 minutes
 const MAX_OUTPUT_CHARS      = 5_000;
@@ -149,6 +150,19 @@ async function deployProject(args = {}, projectRoot = '', config = {}) {
   } = args;
 
   const timeoutMs = Math.min(Math.max(10, timeout), 600) * 1000;
+
+  // « command » est du shell libre : mêmes conditions que run_shell, sans quoi activer
+  // le déploiement suffirait à tout exécuter
+  if (commandOverride) {
+    if (!config.enableShell) {
+      return { ok: false, error: 'COMMANDE_DEPLOY_REFUSÉE — "command" exige run_shell ; retire-la pour utiliser la plateforme détectée' };
+    }
+    if (_isBlocked(commandOverride)) {
+      return { ok: false, error: `COMMANDE_BLOQUÉE (destructrice): ${String(commandOverride).slice(0, 80)}` };
+    }
+    const refused = await approveCommand(commandOverride, config);
+    if (refused) return refused;
+  }
 
   // Détection ou override de plateforme
   let detected = _detectPlatform(projectRoot);

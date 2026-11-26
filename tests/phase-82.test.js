@@ -49,7 +49,7 @@ describe('callApi — validation des args', () => {
         url: 'https://api.example.com',
         token_key: 'tok',
         headers: { Authorization: 'Bearer EVIL', 'X-Custom': 'value' },
-      }, { apiTokens: { tok: 'REAL_TOKEN' } });
+      }, { apiTokens: { tok: 'REAL_TOKEN' }, apiTokenHosts: { tok: ['api.example.com'] } });
 
       assert.equal(r.ok, true);
       // Authorization doit venir du token résolu, pas de l'override headers

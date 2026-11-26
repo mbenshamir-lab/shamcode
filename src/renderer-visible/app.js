@@ -621,7 +621,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   function _activeProviderOf(cfg) {
     const id = cfg?.model?.activeProvider;
     if (!id) return null;
-    return (cfg?.customProviders || []).find(p => p.id === id && p.baseUrl && p.apiKey) || null;
+    return (cfg?.customProviders || []).find(p => p.id === id && p.baseUrl && p.hasKey) || null;
   }
 
   function _updateModelPill(cfg) {
@@ -666,7 +666,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     engineLabel.textContent = model;
     // WebLLM et CPU ne demandent aucune clé : ne jamais afficher « Clé manquante ».
     const localEngine = primary === 'webllm' || primary === 'cpu';
-    const hasKey = active ? !!active.apiKey : (localEngine || !!(engineCfg.apiKey || engineCfg.apiKeyEncrypted));
+    const hasKey = active ? !!active.hasKey : (localEngine || !!(engineCfg.hasKey));
     engineState.textContent = hasKey ? 'Prêt' : 'Clé manquante';
     engineDot.className = 'engine-dot ' + (hasKey ? 'ready' : 'error');
     const root = cfg?.projectRoot || '';
@@ -742,7 +742,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   async function _loadModelsIntoPill(force = false) {
     const primary   = currentConfig?.model?.primary || 'openai-compat';
     const engineCfg = currentConfig?.model?.engines?.[primary] || {};
-    const secondary = (currentConfig?.customProviders || []).filter(p => p.apiKey && p.baseUrl);
+    const secondary = (currentConfig?.customProviders || []).filter(p => p.hasKey && p.baseUrl);
 
     // Cache mémorisé (sauf si force=true, déclenché par ↻)
     if (!force && Array.isArray(engineCfg.availableModels) && engineCfg.availableModels.length) {
@@ -750,12 +750,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Appel API live avec la vraie clé
+    // Appel API live : le processus principal fournit la clé enregistrée
     modelDropdownList.innerHTML = '<div class="model-dropdown-loading">Chargement…</div>';
     try {
-      const apiKey  = engineCfg.apiKey || '';
       const baseUrl = engineCfg.baseUrl || '';
-      const res = await window.harness.listModels({ engine: primary, apiKey, baseUrl });
+      const res = await window.harness.listModels({ engine: primary, apiKey: '', baseUrl });
       if (!res.ok) throw new Error(res.error);
       const models = res.models;
       // Mémorise la liste fraîche

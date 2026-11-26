@@ -105,9 +105,17 @@ function _evidenceBackedByTrace(criterion, trace) {
   return false;
 }
 
+/** batch_replace liste les fichiers modifiés dans son résultat, pas dans ses arguments. */
+function _touchedPaths(entry) {
+  if (entry.tool === TOOLS.BATCH_REPLACE) {
+    return (entry.result.results || []).filter(r => r.modified).map(r => r.path);
+  }
+  return [String(entry.args?.path || '')];
+}
+
 function _touchesDependencyFile(trace) {
   return trace.some(t => MOD_TOOLS.has(t.tool) && t.result?.ok
-    && DEPENDENCY_FILES.some(f => String(t.args?.path || '').endsWith(f)));
+    && _touchedPaths(t).some(p => DEPENDENCY_FILES.some(f => p.endsWith(f))));
 }
 
 /**

@@ -15,7 +15,8 @@ const { registry }           = require('../harness/llm/registry');
 const { saveConfig }         = require('./config');
 const { transcribeAudio, preloadVoiceModel } = require('./voice');
 const { condenseDictation }  = require('../harness/voice/summarize');
-const { resolveAllKeys }     = require('./safe-keys');
+const { resolveAllKeys, secretsAreEncrypted } = require('./safe-keys');
+const { toPublicConfig, mergeConfigUpdate }   = require('./public-config');
 const { runAgent }           = require('../harness/agent');
 const { resolveContextBudget } = require('../harness/context/budget');
 const { makeGuard }          = require('../harness/safety/path-guard');
@@ -84,6 +85,9 @@ function _sendVisible(win, channel, payload) {
  * Point d'entrée unique pour toute la communication inter-process.
  */
 function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
+
+  // Seule forme de la configuration qui quitte le processus principal (ADR-041)
+  const _publicConfig = () => toPublicConfig(config, { secretsEncrypted: secretsAreEncrypted() });
 
   // Créer le bridge WebLLM (communication main ↔ renderer caché)
   const webLlmBridge = _createWebLlmBridge(hiddenWin);
@@ -230,7 +234,7 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
         Object.assign(config, updates);
         await saveConfig(config);
         for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.webContents.send(IPC.CONFIG_UPDATED, config);
+          if (!win.isDestroyed()) win.webContents.send(IPC.CONFIG_UPDATED, _publicConfig());
         }
       },
     };
@@ -379,18 +383,17 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   });
 
   // Config — lecture
-  ipcMain.handle(IPC.CONFIG_GET, async () => config);
+  ipcMain.handle(IPC.CONFIG_GET, async () => _publicConfig());
 
   // Config — écriture
   ipcMain.handle(IPC.CONFIG_SET, async (event, updates) => {
     const prevPrimary = config.model?.primary;
-    Object.assign(config, updates);
+    // Le renderer renvoie une configuration masquée : les secrets enregistrés sont réinjectés
+    Object.assign(config, mergeConfigUpdate(config, updates));
     // Changer de moteur principal annule le fournisseur secondaire choisi dans la
     // pastille : sans cela, il resterait en tête de chaîne malgré le nouveau choix
     // (les renderers renvoient l'ancien activeProvider en même temps que le primary).
     if (config.model && config.model.primary !== prevPrimary) config.model.activeProvider = null;
-    // Re-décrypter les clés après merge : le renderer envoie apiKey='' (il n'a
-    // jamais la clé en clair), ce qui écraserait la valeur décryptée en mémoire.
     resolveAllKeys(config);
     try {
       await saveConfig(config);
@@ -398,10 +401,10 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
       const sender = event?.sender;
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed() && win.webContents !== sender) {
-          win.webContents.send(IPC.CONFIG_UPDATED, config);
+          win.webContents.send(IPC.CONFIG_UPDATED, _publicConfig());
         }
       }
-      return { ok: true };
+      return { ok: true, config: _publicConfig() };
     } catch (err) {
       return { ok: false, error: err.message };
     }
@@ -469,6 +472,9 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
       const abs   = guard(relPath);
       const fs    = require('fs');
       const fsPath = require('path');
+      const { backupBeforeWrite } = require('../harness/safety/backup');
+      const unsaved = backupBeforeWrite(abs, config);
+      if (unsaved) return unsaved;
       fs.mkdirSync(fsPath.dirname(abs), { recursive: true });
       fs.writeFileSync(abs, content, 'utf8');
       return { ok: true };
@@ -478,14 +484,16 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   });
 
   // Lister les modèles disponibles pour un moteur
-  ipcMain.handle(IPC.MODELS_LIST, async (_, { engine, apiKey, baseUrl }) => {
+  ipcMain.handle(IPC.MODELS_LIST, async (_, { engine, apiKey, baseUrl, providerId }) => {
     try {
       // Le champ « clé API » de la fenêtre Paramètres reste vide quand la clé est
       // déjà enregistrée : on retombe sur la clé résolue par loadConfig, sinon
       // « Charger » échouait systématiquement.
-      const saved   = config.model?.engines?.[engine] || {};
+      const provider = providerId ? (config.customProviders || []).find(p => p.id === providerId) : null;
+      const saved   = provider || config.model?.engines?.[engine] || {};
       const key     = apiKey || saved.apiKey || '';
-      const url     = baseUrl || saved.baseUrl || '';
+      // La clé enregistrée d'un fournisseur ne part que vers son URL enregistrée
+      const url     = provider && !apiKey ? saved.baseUrl : (baseUrl || saved.baseUrl || '');
       const models  = await listModels({ engine, apiKey: key, baseUrl: url });
       return { ok: true, models };
     } catch (err) {
