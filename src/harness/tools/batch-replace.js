@@ -60,11 +60,13 @@ function _walkFiles(dir, extFilter, ignore, projectRoot, files) {
  * @param {{ pattern: string, replacement?: string, path?: string, ext?: string, dry_run?: boolean }} args
  * @param {Function} guard
  * @param {string}   projectRoot
+ * @param {{ maxBackups?: number }} [config]
  */
 function batchReplace(
   { pattern, replacement = '', path: subPath = '.', ext, dry_run = false } = {},
   guard,
   projectRoot = '',
+  config = {},
 ) {
   if (!pattern) return { ok: false, error: 'PATTERN_MANQUANT' };
 
@@ -72,18 +74,27 @@ function batchReplace(
   try { regex = new RegExp(pattern, 'g'); }
   catch (e) { return { ok: false, error: `REGEX_INVALIDE: ${e.message}` }; }
 
-  let startDir;
+  let startPath;
+  let root;
   try {
-    startDir = subPath && subPath !== '.' ? guard(subPath) : (projectRoot || '.');
+    // Sans projectRoot, la racine du guard — jamais le dossier courant du processus
+    root = projectRoot ? path.resolve(projectRoot) : guard('.');
+    startPath = guard(subPath || '.');
   } catch (e) { return { ok: false, error: e.message }; }
 
   const extFilter = ext
     ? (ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`)
     : null;
 
-  const ignore = projectRoot ? getIgnore(projectRoot) : null;
+  // Chemins et règles .harnessignore relatifs au projet, même si la recherche part d'un sous-dossier
+  const ignore = getIgnore(root);
   const files  = [];
-  _walkFiles(startDir, extFilter, ignore, startDir, files);
+  if (fs.statSync(startPath, { throwIfNoEntry: false })?.isFile()) {
+    const relPath = path.relative(root, startPath).replace(/\\/g, '/');
+    if (!ignore.isIgnored(relPath)) files.push({ absPath: startPath, relPath });
+  } else {
+    _walkFiles(startPath, extFilter, ignore, root, files);
+  }
 
   const results = [];
   let totalReplacements = 0;
@@ -111,7 +122,8 @@ function batchReplace(
       results.push({ path: relPath, count });
     } else {
       const newContent = content.replace(new RegExp(pattern, 'g'), replacement);
-      snapshot(absPath);
+      const saved = snapshot(absPath, config.maxBackups);
+      if (!saved.ok) { results.push({ path: relPath, count, error: `BACKUP_ÉCHOUÉ: ${saved.error}` }); continue; }
       fs.writeFileSync(absPath, newContent, 'utf8');
       results.push({ path: relPath, count, modified: true });
     }
@@ -119,7 +131,7 @@ function batchReplace(
 
   return {
     ok: true,
-    files_modified:     dry_run ? 0 : results.length,
+    files_modified:     results.filter(r => r.modified).length,
     files_matched:      results.length,
     total_replacements: totalReplacements,
     results,

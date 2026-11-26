@@ -82,4 +82,4 @@ async function runShell(args, projectRoot, config) {
   return { ok: false, error, stdout, code: run.code };
 }
 
-module.exports = { runShell, approveCommand };
+module.exports = { runShell, approveCommand, _isBlocked };

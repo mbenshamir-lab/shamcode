@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 
@@ -18,8 +18,11 @@ function _hasGit(projectRoot) {
   return false;
 }
 
-function _run(cmd, cwd) {
-  return execSync(cmd, { cwd, timeout: GIT_TIMEOUT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+// Arguments passés en tableau, sans shell : un chemin ou un message ne peut ni exécuter de
+// commande, ni être découpé par cmd.exe (qui ignore les guillemets simples).
+// trimEnd seulement : l'espace de tête de `status --porcelain` fait partie du format.
+function _run(args, cwd) {
+  return execFileSync('git', args, { cwd, timeout: GIT_TIMEOUT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trimEnd();
 }
 
 /**
@@ -29,12 +32,12 @@ function _run(cmd, cwd) {
 async function gitStatus(args, guard, projectRoot) {
   if (!_hasGit(projectRoot)) return { ok: false, error: 'GIT_NOT_FOUND' };
   try {
-    const raw = _run('git status --porcelain', projectRoot);
+    const raw = _run(['status', '--porcelain'], projectRoot);
     const files = raw.split('\n').filter(Boolean).map(line => ({
       status: line.slice(0, 2).trim(),
       path:   line.slice(3).trim(),
     }));
-    const branch = _run('git branch --show-current', projectRoot);
+    const branch = _run(['branch', '--show-current'], projectRoot);
     return { ok: true, branch, files };
   } catch (e) {
     return { ok: false, error: e.message.slice(0, 200) };
@@ -48,12 +51,11 @@ async function gitStatus(args, guard, projectRoot) {
 async function gitDiff(args, guard, projectRoot) {
   if (!_hasGit(projectRoot)) return { ok: false, error: 'GIT_NOT_FOUND' };
   try {
-    const target = args.path ? args.path : '';
     // path-guard si un fichier est spécifié
     if (args.path) {
       try { guard(args.path); } catch (e) { return { ok: false, error: e.message }; }
     }
-    const raw = _run(`git diff -- ${target}`, projectRoot);
+    const raw = _run(['diff', '--', ...(args.path ? [args.path] : [])], projectRoot);
     const diff = raw.slice(0, 4000);
     return { ok: true, diff, truncated: raw.length > 4000 };
   } catch (e) {
@@ -78,7 +80,7 @@ async function gitCreateBranch({ name, from }, guard, projectRoot, config = {}) 
   if (!_hasGit(projectRoot)) return { ok: false, error: 'GIT_NOT_FOUND' };
   try {
     const base = (from && /^[\w\-./]+$/.test(from)) ? from : '';
-    _run(`git checkout -b ${name}${base ? ' ' + base : ''}`, projectRoot);
+    _run(['checkout', '-b', name, ...(base ? [base] : [])], projectRoot);
     return { ok: true, branch: name };
   } catch (e) {
     return { ok: false, error: e.message.slice(0, 200) };
@@ -105,15 +107,12 @@ async function gitCommit({ message, paths }, guard, projectRoot, config = {}) {
       for (const p of paths) {
         try { guard(p); } catch (e) { return { ok: false, error: `CHEMIN_HORS_PROJET: ${p}` }; }
       }
-      const safeList = paths.map(p => `"${p.replace(/"/g, '\\"')}"`).join(' ');
-      _run(`git add -- ${safeList}`, projectRoot);
+      _run(['add', '--', ...paths], projectRoot);
     } else {
-      _run('git add -A', projectRoot);
+      _run(['add', '-A'], projectRoot);
     }
-    // Message entre guillemets simples, escaped
-    const safeMsg = message.replace(/'/g, "'\\''");
-    _run(`git commit -m '${safeMsg}'`, projectRoot);
-    const hash = _run('git rev-parse --short HEAD', projectRoot);
+    _run(['commit', '-m', message], projectRoot);
+    const hash = _run(['rev-parse', '--short', 'HEAD'], projectRoot);
     return { ok: true, hash };
   } catch (e) {
     return { ok: false, error: e.message.slice(0, 200) };

@@ -62,6 +62,10 @@ async function formatFile({ path: relPath }, guard, projectRoot) {
     return { ok: false, error: e.message };
   }
 
+  // Le chemin est inséré entre guillemets dans une commande shell : refuser ce qui en sort
+  const escapes = process.platform === 'win32' ? /["\r\n]/ : /["`$\\\r\n]/;
+  if (escapes.test(relPath)) return { ok: false, error: 'CHEMIN_NON_FORMATABLE' };
+
   const detected = _detectFormatter(relPath, projectRoot);
   if (!detected) {
     return { ok: true, skipped: true, reason: 'Aucun formateur disponible pour cette extension' };

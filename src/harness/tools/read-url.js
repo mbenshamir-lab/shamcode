@@ -13,9 +13,12 @@ const MAX_CHARS_DEFAULT = 5000;
 const MAX_CHARS_LIMIT   = 20000;
 
 function _isPrivate(hostname) {
-  const h = hostname.toLowerCase();
+  // new URL() encadre les adresses IPv6 de crochets, et « localhost. » désigne localhost
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  // IPv6 : tout « :: » (boucle locale, IPv4 encapsulée), réseaux privés et de lien local
+  if (h.includes(':')) return /^(::|f[cd]|fe[89ab])/.test(h);
   return (
-    h === 'localhost' || h === '::1' ||
+    h === 'localhost' ||
     /^127\./.test(h)  ||
     /^0\./.test(h)    ||
     /^10\./.test(h)   ||
@@ -64,7 +67,11 @@ function _fetch(rawUrl, hopsLeft) {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
           if (hopsLeft <= 0) return reject(new Error('TROP_DE_REDIRECTIONS'));
-          _fetch(res.headers.location, hopsLeft - 1).then(resolve).catch(reject);
+          // La cible peut être relative ; elle repasse par les mêmes contrôles d'hôte
+          let next;
+          try { next = new URL(res.headers.location, parsed).href; }
+          catch { return reject(new Error('URL_INVALIDE')); }
+          _fetch(next, hopsLeft - 1).then(resolve).catch(reject);
           return;
         }
 

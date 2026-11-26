@@ -29,6 +29,8 @@ function _buildSubContext(role, task, config, onEvent) {
       ? config.requestPlanApproval
       : null,
     requestApproval:     config.requestApproval,
+    // Le quota de plans vaut par tâche : hérité, il interdirait tout plan au sous-agent
+    _planCalls:          0,
     maxSteps:            Math.min(config.maxSteps || 25, profile.maxSteps || 15),
   };
 

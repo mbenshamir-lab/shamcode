@@ -2230,10 +2230,12 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
     // 2. Inline : code, gras, italique — appliqué à un fragment (titre, puce, ligne)
     //    Les chemins de fichiers deviennent des liens cliquables (visionneuse).
     function inline(s) {
+      const spans = []; // code mis de côté : ses * ne formatent rien
       const out = s
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/`([^`]+)`/g, (_, c) => `\x01${spans.push(c) - 1}\x01`)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/\x01(\d+)\x01/g, (_, i) => `<code>${spans[i]}</code>`);
       return _linkifyFiles(out);
     }
 
@@ -3919,6 +3921,11 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
       : (_schedCronPreset?.value || '');
     if (!label || !task || !cron) return;
     const res = await window.harness.scheduleAdd({ label, task, cron });
+    if (res?.error === 'CRON_INVALIDE') {
+      _schedCronCustom.setCustomValidity('Expression cron invalide');
+      _schedCronCustom.reportValidity();
+      _schedCronCustom.addEventListener('input', () => _schedCronCustom.setCustomValidity(''), { once: true });
+    }
     if (res?.ok) {
       document.getElementById('sched-label').value = '';
       document.getElementById('sched-task').value  = '';

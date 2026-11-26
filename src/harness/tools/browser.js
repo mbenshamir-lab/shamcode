@@ -85,7 +85,8 @@ async function browserOpen(args) {
 
     return { ok: true, status: 'ouvert', url: _page.url() };
   } catch (err) {
-    _browser = null; _page = null;
+    // Page injoignable : fermer le navigateur déjà lancé, sinon il reste orphelin
+    await browserClose();
     return { ok: false, error: err.message };
   }
 }

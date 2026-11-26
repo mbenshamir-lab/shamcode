@@ -38,22 +38,35 @@ function _createWebLlmBridge(hiddenWin) {
     isReady:  () => Promise.resolve(_ready),
     getError: () => _error,
 
-    sendRequest: (messages, options) => new Promise((resolve, reject) => {
+    sendRequest: (messages, options = {}) => new Promise((resolve, reject) => {
+      const { signal } = options;
+      if (signal?.aborted) { reject(new Error('ANNULÉ')); return; }
       const replyChannel = crypto.randomBytes(8).toString('hex');
       const fullChannel  = `${IPC.LLM_REPLY}:${replyChannel}`;
 
-      const timer = setTimeout(() => {
+      const fail = (message) => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         ipcMain.removeAllListeners(fullChannel);
-        reject(new Error('WebLLM timeout (300s)'));
-      }, 300_000);
+        reject(new Error(message));
+      };
+      const onAbort = () => fail('ANNULÉ');
+      const timer = setTimeout(() => fail('WebLLM timeout (300s)'), 300_000);
+      signal?.addEventListener('abort', onAbort, { once: true });
 
       ipcMain.once(fullChannel, (_, result) => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         if (result.error) reject(new Error(result.error));
         else resolve(result.text);
       });
 
-      hiddenWin.webContents.send(IPC.LLM_REQUEST, { messages, options, replyChannel });
+      // Seules des données traversent l'IPC : avec les callbacks (onToken, onUsage),
+      // Electron rejette le message entier et la requête n'arrive jamais.
+      const { temperature, topP, maxTokens } = options;
+      hiddenWin.webContents.send(IPC.LLM_REQUEST, {
+        messages, options: { temperature, topP, maxTokens }, replyChannel,
+      });
     }),
   };
 }
@@ -525,6 +538,10 @@ function registerIpcHandlers({ visibleWin, hiddenWin, config }) {
   ipcMain.handle(IPC.SCHEDULE_LIST,   () => ({ ok: true, tasks: listTasks(config) }));
 
   ipcMain.handle(IPC.SCHEDULE_ADD, async (_, taskData) => {
+    // Une expression invalide serait enregistrée comme active sans jamais s'exécuter
+    if (taskData?.cron && !require('node-cron').validate(taskData.cron)) {
+      return { ok: false, error: 'CRON_INVALIDE' };
+    }
     const res = addTask(config, taskData);
     if (!res.ok) return res;
     await saveConfig(config);
@@ -628,4 +645,4 @@ function _buildRouter(config, bridges = {}) {
   return new LlmRouter(chain, runtimeRegistry, routerCfg, bridges);
 }
 
-module.exports = { registerIpcHandlers };
+module.exports = { registerIpcHandlers, _createWebLlmBridge };

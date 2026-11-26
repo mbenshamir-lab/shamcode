@@ -17,6 +17,7 @@ const { spawn }  = require('child_process');
 const os         = require('os');
 const path       = require('path');
 const { safeEnv } = require('./run-command');
+const { _isBlocked } = require('./shell');
 
 const MAX_LINES     = 500;  // ring buffer par processus
 const MAX_OUT_CHARS = 6000; // limite de get_output
@@ -63,6 +64,10 @@ function startProcess(args = {}, projectRoot = '', config = {}) {
 
   const { command, name: rawName, cwd: rawCwd } = args;
   if (!command?.trim()) return { ok: false, error: 'COMMANDE_VIDE' };
+  // Même liste noire que run_shell, sinon start_process la contournerait
+  if (_isBlocked(command)) {
+    return { ok: false, error: `COMMANDE_BLOQUÉE (destructrice): ${command.slice(0, 80)}` };
+  }
 
   const name = (rawName?.trim() || _auto_name(command));
 
@@ -73,7 +78,8 @@ function startProcess(args = {}, projectRoot = '', config = {}) {
     }
   }
 
-  const cwd = rawCwd ? path.resolve(rawCwd) : (projectRoot || process.cwd());
+  // Un cwd relatif se lit depuis le projet, pas depuis le dossier de lancement de l'app
+  const cwd = path.resolve(projectRoot || process.cwd(), rawCwd || '.');
 
   const entry = {
     name,
@@ -125,7 +131,8 @@ function startProcess(args = {}, projectRoot = '', config = {}) {
   });
 
   proc.on('close', (code) => {
-    entry.status   = code === 0 ? 'stopped' : 'error';
+    // Un arrêt demandé sort avec un code non nul : ce n'est pas une erreur
+    entry.status   = code === 0 || entry.status === 'stopped' ? 'stopped' : 'error';
     entry.exitCode = code;
     entry._proc    = null;
     _append(entry, `[sys] Processus terminé (code ${code})`);

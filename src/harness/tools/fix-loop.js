@@ -89,7 +89,7 @@ function _summarizeFailures(output) {
  * @param {object}   config
  * @returns {Promise<{ ok, fixed, iterations, history, error? }>}
  */
-async function fixLoop(args, guard, projectRoot, config) {
+async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
   const llmGenerate = config._llmGenerate;
   if (!llmGenerate) return { ok: false, error: 'LLM_NON_INJECTABLE' };
   if (!projectRoot) return { ok: false, error: 'PROJET_MANQUANT' };
@@ -110,6 +110,8 @@ async function fixLoop(args, guard, projectRoot, config) {
     if (testResult.exitCode === 0) {
       return { ok: true, fixed: iter > 1, iterations: iter - 1, history };
     }
+    // Commande refusée ou introuvable : il n'y a aucun échec de test à corriger
+    if (testResult.exitCode === undefined) return { ok: false, error: testResult.error, history };
 
     const failures = _summarizeFailures(testResult.stdout || testResult.error || '');
 
@@ -121,7 +123,7 @@ async function fixLoop(args, guard, projectRoot, config) {
 
     let llmResponse;
     try {
-      llmResponse = await llmGenerate(messages, { temperature: DEFAULT_TEMPERATURE });
+      llmResponse = await llmGenerate(messages, { temperature: DEFAULT_TEMPERATURE, signal: config._signal });
     } catch (e) {
       return { ok: false, error: `LLM_ERREUR: ${e.message}`, history };
     }
@@ -144,7 +146,7 @@ async function fixLoop(args, guard, projectRoot, config) {
     const actions = [];
     for (const { tool, args: toolArgs } of toolCalls) {
       if (!ALLOWED_FIX_TOOLS.has(tool)) continue;
-      const result = await dispatch(tool, toolArgs, guard, config);
+      const result = await dispatch(tool, toolArgs, guard, config, onEvent, projectRoot);
       actions.push({ tool, args: toolArgs, ok: result.ok, error: result.error });
     }
 

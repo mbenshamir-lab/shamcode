@@ -93,7 +93,7 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.WRITE_FILE:
       return writeFile(args, guard, { ...config, _guard: guard, _projectRoot: projectRoot }, onEvent);
     case TOOLS.REPLACE_CODE:
-      return replaceCode(args, guard, config, onEvent);
+      return replaceCode(args, guard, config, onEvent, projectRoot);
     case TOOLS.LIST_DIR:
       return listDir(args, guard, projectRoot);
     case TOOLS.FINISH:
@@ -115,13 +115,13 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.GET_PROJECT_INFO:
       return getProjectInfo(args, projectRoot);
     case TOOLS.RESTORE_FILE:
-      return restoreFile(args, guard);
+      return restoreFile(args, guard, config);
     case TOOLS.SCRATCHPAD_TOOL:
       return useScratchpad(args, config._scratchpad);
     case TOOLS.DIFF_FILE:
-      return diffFile(args, guard);
+      return diffFile(args, guard, projectRoot);
     case TOOLS.BATCH_REPLACE:
-      return batchReplace(args, guard, projectRoot);
+      return batchReplace(args, guard, projectRoot, config);
     case TOOLS.READ_URL:
       return readUrl(args);
     case TOOLS.HTTP_REQUEST: {
@@ -233,7 +233,7 @@ async function dispatch(toolName, args, guard, config = {}, onEvent = () => {}, 
     case TOOLS.LSP_REFERENCES:
       return lspReferences(args, guard, projectRoot, config);
     case TOOLS.FIX_LOOP:
-      return fixLoop(args, guard, projectRoot, config);
+      return fixLoop(args, guard, projectRoot, config, onEvent);
     case TOOLS.GENERATE_PALETTE:
       return generatePalette(args);
     case TOOLS.READ_DESIGN_TOKENS:

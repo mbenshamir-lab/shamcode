@@ -8,6 +8,14 @@ const { DEFAULT_TEMPERATURE } = require('../../../shared/constants');
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+/** Une réponse peut être répartie sur plusieurs parties ; la réflexion n'en fait pas partie. */
+function _textOf(response) {
+  return (response?.candidates?.[0]?.content?.parts || [])
+    .filter(p => !p.thought && p.text)
+    .map(p => p.text)
+    .join('');
+}
+
 class GeminiEngine extends LlmEngine {
   /**
    * @param {{ apiKey: string, model?: string }} config
@@ -76,7 +84,7 @@ class GeminiEngine extends LlmEngine {
     // ── Mode non-streaming ──────────────────────────────────────────────────
     if (!streaming) {
       const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = _textOf(data);
       if (!text) throw new Error('GEMINI_EMPTY_RESPONSE');
       if (options.onUsage && data.usageMetadata) {
         options.onUsage({
@@ -110,7 +118,7 @@ class GeminiEngine extends LlmEngine {
         const data = line.slice(6).trim();
         try {
           const json  = JSON.parse(data);
-          const token = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+          const token = _textOf(json);
           if (token) { fullText += token; options.onToken(token); }
           if (json?.usageMetadata) usageMeta = json.usageMetadata;
           if (json?.candidates?.[0]?.finishReason) finishReason = json.candidates[0].finishReason;

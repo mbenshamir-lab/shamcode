@@ -36,6 +36,8 @@ function _patternToRegex(pattern) {
   // Échapper les caractères spéciaux RegExp sauf * et ?
   p = p.replace(/[.+^${}()|[\]\\]/g, '\\$&');
 
+  // « **/ » couvre aussi zéro dossier : `**/token.txt` vise également la racine
+  p = p.replace(/\*\*\//g, '\u0001');
   // ** → match n'importe quel chemin
   p = p.replace(/\*\*/g, '￾');
   // * → tout sauf /
@@ -44,6 +46,7 @@ function _patternToRegex(pattern) {
   p = p.replace(/\?/g, '[^/]');
   // Restaurer **
   p = p.replace(/￾/g, '.*');
+  p = p.replace(/\u0001/g, '(?:.*/)?');
 
   // Ancrage : si ancré, doit commencer depuis la racine
   // Sinon, peut apparaître n'importe où dans le chemin
@@ -51,7 +54,8 @@ function _patternToRegex(pattern) {
   // Si dirOnly, le chemin doit correspondre à ce dossier ou être sous ce dossier
   const suffix = dirOnly ? '(/.*)?$' : '(/.*)?$';
 
-  return new RegExp(`${prefix}${p}${suffix}`);
+  // Système de fichiers insensible à la casse : `.ENV` désigne le même fichier que `.env`
+  return new RegExp(`${prefix}${p}${suffix}`, process.platform === 'win32' ? 'i' : '');
 }
 
 /**
@@ -84,8 +88,8 @@ function loadHarnessIgnore(projectRoot) {
   const regexes = patterns.map(_patternToRegex);
 
   function isIgnored(relPath) {
-    // Normaliser les séparateurs → POSIX
-    const normalized = relPath.replace(/\\/g, '/');
+    // Normaliser les séparateurs → POSIX, et réduire « ./x » ou « a/../x »
+    const normalized = path.posix.normalize(relPath.replace(/\\/g, '/'));
     return regexes.some(re => re.test(normalized));
   }
 

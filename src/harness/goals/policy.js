@@ -90,8 +90,10 @@ function _evidenceBackedByTrace(criterion, trace) {
   if (!evidence) return false;
 
   if (evidence.kind === 'file') {
+    // Une lecture groupée liste les fichiers lus dans result.files
     return trace.some(t => t.tool === TOOLS.READ_FILE && t.result?.ok
-      && String(t.args?.path) === String(evidence.path));
+      && (String(t.args?.path) === String(evidence.path)
+        || t.result.files?.some(f => f.ok && String(f.path) === String(evidence.path))));
   }
   if (evidence.kind === 'test') {
     return trace.some(t => t.tool === TOOLS.RUN_TESTS && t.result?.ok);

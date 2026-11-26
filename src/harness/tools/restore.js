@@ -18,7 +18,7 @@ const { snapshot, fileKey, getBackupDir } = require('../safety/backup');
  * @param {Function} guard
  * @returns {{ ok, restored?, from?, backups? }}
  */
-function restoreFile({ path: relPath, list = false, backup_index = 0 }, guard) {
+function restoreFile({ path: relPath, list = false, backup_index = 0 }, guard, { maxBackups } = {}) {
   if (!relPath) return { ok: false, error: 'RESTORE_SANS_CHEMIN' };
 
   // Valider que le chemin cible est dans le projet
@@ -75,14 +75,16 @@ function restoreFile({ path: relPath, list = false, backup_index = 0 }, guard) {
   const chosen     = backups[backup_index];
   const backupPath = path.join(BACKUP_DIR, chosen.timestamp, basename);
 
-  // Snapshot de l'état actuel avant restauration — la restauration est elle-même annulable
-  if (fs.existsSync(absPath)) {
-    snapshot(absPath);
-  }
-
   try {
+    // Lu avant le snapshot : la rétention peut supprimer le backup choisi s'il est le plus ancien
+    const content = fs.readFileSync(backupPath);
+
+    // Snapshot de l'état actuel avant restauration — la restauration est elle-même annulable
+    const saved = snapshot(absPath, maxBackups);
+    if (!saved.ok) return { ok: false, error: `BACKUP_ÉCHOUÉ: ${saved.error}` };
+
     fs.mkdirSync(path.dirname(absPath), { recursive: true });
-    fs.copyFileSync(backupPath, absPath);
+    fs.writeFileSync(absPath, content);
   } catch (e) {
     return { ok: false, error: `ERREUR_RESTAURATION: ${e.message}` };
   }

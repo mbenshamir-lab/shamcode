@@ -46,6 +46,8 @@ class CpuEngine extends LlmEngine {
     this._session = null;
     this._history = null;       // messages envoyés + réponse assistant
     this._systemPrompt = null;
+    this._sequence = null;      // unique séquence du contexte, partagée par les sessions
+    this._queue = Promise.resolve();
   }
 
   /** Charge llama + modèle + contexte KV une seule fois, réutilise ensuite. */
@@ -91,10 +93,12 @@ class CpuEngine extends LlmEngine {
       try { this._session.dispose(); } catch { /* déjà libérée */ }
     }
     const { context, LlamaChatSession } = this._ctx;
+    // Le contexte n'a qu'une séquence, libérée de façon asynchrone : on la réutilise
+    this._sequence ??= context.getSequence();
     this._session = new LlamaChatSession({
-      contextSequence: context.getSequence(),
+      contextSequence: this._sequence,
       ...(systemPrompt ? { systemPrompt } : {}),
-      autoDisposeSequence: true,
+      autoDisposeSequence: false,
     });
     this._systemPrompt = systemPrompt || '';
     this._history = null;
@@ -122,8 +126,16 @@ class CpuEngine extends LlmEngine {
    * @param {{ temperature?: number, onToken?: Function, onUsage?: Function, maxTokens?: number }} options
    * @returns {Promise<string>}
    */
-  async generate(messages, options = {}) {
+  generate(messages, options = {}) {
+    // Une seule session : des sous-agents parallèles doivent passer l'un après l'autre
+    const run = this._queue.then(() => this._generate(messages, options));
+    this._queue = run.catch(() => {});
+    return run;
+  }
+
+  async _generate(messages, options) {
     if (!this.modelPath) throw new Error('CPU_NO_MODEL_PATH');
+    if (options.signal?.aborted) throw new Error('ANNULÉ');
 
     const ctx = await this._ensureLoaded();
     if (!ctx) throw new Error('CPU_CONTEXTE_INDISPONIBLE');
@@ -137,6 +149,7 @@ class CpuEngine extends LlmEngine {
       ...(typeof options.onToken === 'function' ? { onTextChunk: options.onToken } : {}),
       ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
       ...(Number.isFinite(options.maxTokens) ? { maxTokens: options.maxTokens } : {}),
+      ...(options.signal ? { signal: options.signal } : {}), // Stop de l'utilisateur
     };
 
     // Réutiliser la session seulement si le prompt système est identique, que
@@ -148,21 +161,27 @@ class CpuEngine extends LlmEngine {
       && messages.slice(this._history.length).every(m => m.role === 'user');
 
     let result;
-    if (canExtend) {
-      const delta = messages.slice(this._history.length);
-      for (const msg of delta) {
-        result = await this._session.prompt(String(msg.content ?? ''), promptOpts);
+    try {
+      if (canExtend) {
+        const delta = messages.slice(this._history.length);
+        for (const msg of delta) {
+          result = await this._session.prompt(String(msg.content ?? ''), promptOpts);
+        }
+      } else {
+        this._resetSession(systemMsg);
+        const history = nonSystem.slice(0, lastUserIdx).map(m => ({
+          type: m.role === 'user' ? 'user' : 'model',
+          ...(m.role === 'user' ? { text: m.content } : { response: [m.content] }),
+        }));
+        if (history.length > 0) {
+          // La session neuve porte déjà le message système : l'historique s'ajoute après
+          this._session.setChatHistory([...this._session.getChatHistory(), ...history]);
+        }
+        result = await this._session.prompt(lastUserMsg, promptOpts);
       }
-    } else {
-      this._resetSession(systemMsg);
-      const history = nonSystem.slice(0, lastUserIdx).map(m => ({
-        type: m.role === 'user' ? 'user' : 'model',
-        ...(m.role === 'user' ? { text: m.content } : { response: [m.content] }),
-      }));
-      if (history.length > 0) {
-        await this._session.reloadHistory(history);
-      }
-      result = await this._session.prompt(lastUserMsg, promptOpts);
+    } catch (err) {
+      this._history = null; // état de la session inconnu : ne pas la prolonger
+      throw err;
     }
 
     if (typeof result !== 'string') result = String(result ?? '');
@@ -191,6 +210,7 @@ class CpuEngine extends LlmEngine {
     }
     this._session = null;
     this._history = null;
+    this._sequence = null;      // libérée avec le contexte
     if (this._ctx?.context) {
       try { await this._ctx.context.dispose?.(); } catch { /* ignore */ }
     }

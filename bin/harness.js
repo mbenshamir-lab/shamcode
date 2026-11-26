@@ -133,6 +133,8 @@ async function main() {
       enableShell: opts.shell,
       // ask_user interactif dans le terminal
       requestUserInput: askUserCli,
+      // spawn_agent, spawn_parallel et fix_loop génèrent via ce callback
+      _llmGenerate: (msgs, options) => engine.generate(msgs, options),
     },
     onEvent(ev) {
       switch (ev.type) {
