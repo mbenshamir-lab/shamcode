@@ -30,23 +30,51 @@ function _flashStatus(ok, msg) {
 // peut attendre la fin de la file avec un simple "await _saveQueue".
 let _saveQueue = Promise.resolve();
 
+let _pendingSaves = 0;
+// Renommages de tokens pas encore transmis : { nouveau nom: nom connu du processus principal }
+let _pendingRenames = {};
+
+function _recordRenames(renames) {
+  // Origines lues avant toute écriture : A → B puis B → C doit désigner A
+  const resolved = Object.entries(renames).map(([to, from]) => [to, from, _pendingRenames[from] ?? from]);
+  resolved.forEach(([, from]) => { delete _pendingRenames[from]; });
+  resolved.forEach(([to, , origin]) => { _pendingRenames[to] = origin; });
+}
+
 // Mise à jour optimiste : currentConfig est synchronisé AVANT l'await,
 // de sorte qu'aucun callback ne lise un état périmé même si plusieurs
 // saves sont en vol simultanément.
-function _autoSave(patch) {
+function _autoSave(patch, renames) {
   // Optimistic update synchrone — le prochain appel voit déjà la valeur à jour.
   const merged = _deepMerge(currentConfig, patch);
+  // Tables remplacées en bloc : fusionnées, un token supprimé ou renommé réapparaîtrait
+  for (const key of ['apiTokens', 'apiTokenHosts']) if (patch[key]) merged[key] = patch[key];
   Object.assign(currentConfig, merged);
+  if (renames) _recordRenames(renames);
+  _pendingSaves++;
 
   // Chaîner dans la file pour serialiser les appels IPC.
   _saveQueue = _saveQueue.catch(() => {}).then(async () => {
+    const apiTokenRenames = _pendingRenames;
+    _pendingRenames = {};
+    let res;
     try {
-      const res = await window.settingsApi.setConfig(currentConfig);
-      if (res?.ok === false) { _flashStatus(false, `✗ ${res.error}`); return; }
-      _flashStatus(true, '✓');
+      res = await window.settingsApi.setConfig({ ...currentConfig, apiTokenRenames });
+      if (res?.ok === false) _flashStatus(false, `✗ ${res.error}`);
+      else _flashStatus(true, '✓');
     } catch (err) { _flashStatus(false, `✗ ${err.message}`); }
+    // Dernière sauvegarde de la file : reprendre l'état masqué, sans les secrets saisis
+    if (--_pendingSaves === 0 && res?.config) currentConfig = res.config;
   });
   return _saveQueue;
+}
+
+/** Champ clé du moteur : la valeur enregistrée n'est jamais renvoyée à cette fenêtre. */
+function _showKeyState(engine) {
+  const saved = !!currentConfig?.model?.engines?.[engine]?.hasKey;
+  document.getElementById('sm-api-key').placeholder = saved
+    ? 'Clé enregistrée — laisser vide pour la conserver'
+    : 'cc_… / AIza… / sk-ant-… / sk-…';
 }
 
 function _applyVisualSettings(cfg) {
@@ -137,6 +165,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Modèle
     document.getElementById('sm-engine').value      = primary;
     document.getElementById('sm-api-key').value     = '';  // jamais affichée
+    _showKeyState(primary);
+    document.getElementById('sm-secrets-warning').classList.toggle('sm-hidden', cfg?.secretsEncrypted !== false);
     document.getElementById('sm-base-url').value    = engCfg.baseUrl || '';
     document.getElementById('sm-model-name').value  = engCfg.model   || '';
     document.getElementById('sm-webllm-model').value    = cfg?.model?.engines?.webllm?.model     || 'Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC';
@@ -194,7 +224,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // MCP
     _renderConnectors(cfg?.connectors || []);
-    _renderApiTokens(cfg?.apiTokens || {});
+    _renderApiTokens(cfg);
 
     // Thèmes
     const theme = cfg?.theme || 'dark';
@@ -262,6 +292,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sm-model-name').value = engCfg.model   || '';
     document.getElementById('sm-base-url').value   = engCfg.baseUrl || '';
     document.getElementById('sm-api-key').value    = '';
+    _showKeyState(eng);
     _autoSave({ model: { ...currentConfig.model, primary: eng } });
   });
   document.getElementById('sm-temperature').addEventListener('input', e => {
@@ -438,6 +469,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const engines = { ...currentConfig?.model?.engines, [engine]: updEng };
     await _autoSave({ model: { ...currentConfig.model, primary, engines } });
     if (apiKey) document.getElementById('sm-api-key').value = '';
+    _showKeyState(engine);
   });
 
   // ── Handlers — Onglet Agent ────────────────────────────────────────────────
@@ -580,7 +612,7 @@ window.addEventListener('DOMContentLoaded', async () => {
           <input type="text" class="sm-input sm-custom-provider-url"  placeholder="https://api.openai.com/v1" value="${(prov.baseUrl || '').replace(/"/g, '&quot;')}" autocomplete="off" />
           <button class="sm-btn sm-btn-ghost sm-custom-provider-delete" title="Supprimer">×</button>
         </div>
-        <input type="password" class="sm-input sm-custom-provider-key" placeholder="Clé API…" value="${(prov.apiKey || '').replace(/"/g, '&quot;')}" autocomplete="off" />
+        <input type="password" class="sm-input sm-custom-provider-key" placeholder="${prov.hasKey ? 'Clé enregistrée — laisser vide pour la conserver' : 'Clé API…'}" autocomplete="off" />
         <div class="sm-cp-model">
           <input type="text" class="sm-input sm-cp-model-input" list="${dlId}" placeholder="Modèle par défaut (optionnel)" value="${(prov.model || '').replace(/"/g, '&quot;')}" autocomplete="off" />
           <datalist id="${dlId}">${modelOpts}</datalist>
@@ -606,10 +638,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         const btn = row.querySelector('.sm-cp-load-models');
         const key = row.querySelector('.sm-custom-provider-key').value.trim();
         const url = row.querySelector('.sm-custom-provider-url').value.trim();
-        if (!key || !url) return;
+        if (!url || (!key && !prov.hasKey)) return;
         btn.textContent = '…'; btn.disabled = true;
         try {
-          const res = await window.settingsApi.listModels({ engine: 'openai-compat', apiKey: key, baseUrl: url });
+          const res = await window.settingsApi.listModels({ engine: 'openai-compat', apiKey: key, baseUrl: url, providerId: prov.id });
           if (!res.ok) throw new Error(res.error);
           const dl = document.getElementById(dlId);
           dl.innerHTML = res.models.map(m => `<option value="${m.replace(/"/g, '&quot;')}">`).join('');
@@ -634,10 +666,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         baseUrl: row.querySelector('.sm-custom-provider-url').value.trim(),
         apiKey:  row.querySelector('.sm-custom-provider-key').value,
       };
+      entry.hasKey = !!(entry.apiKey || cached?.hasKey);
       if (model)                    entry.model          = model;
       if (cached?.availableModels)  entry.availableModels = cached.availableModels;
       return entry;
-    }).filter(p => p.name || p.apiKey);
+    }).filter(p => p.name || p.hasKey);
   }
 
   document.getElementById('sm-add-custom-provider').addEventListener('click', () => {
@@ -797,62 +830,78 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ── Tokens API REST ───────────────────────────────────────────────────────
-  function _renderApiTokens(tokens) {
-    const list = document.getElementById('sm-tokens-list');
-    list.innerHTML = '';
-    const entries = Object.entries(tokens);
-    if (!entries.length) {
-      list.innerHTML = '<div class="sm-skills-empty">Aucun token configuré.</div>';
-      return;
-    }
-    entries.forEach(([key, value]) => {
-      const item = document.createElement('div');
-      item.className = 'sm-token-item';
-      item.dataset.key = key;
-      item.innerHTML = `
-        <input type="text"     class="sm-token-key"   placeholder="Nom (ex: github)"  value="${key.replace(/"/g,'&quot;')}">
-        <input type="password" class="sm-token-value" placeholder="Bearer token…"     value="${value.replace(/"/g,'&quot;')}">
-        <button class="sm-token-delete" title="Supprimer">×</button>`;
-      list.appendChild(item);
-      let _timer = null;
-      const debounce = () => { clearTimeout(_timer); _timer = setTimeout(() => _saveTokensFromDom(), 700); };
-      item.querySelector('.sm-token-key').addEventListener('input',   debounce);
-      item.querySelector('.sm-token-value').addEventListener('input', debounce);
-      item.querySelector('.sm-token-delete').addEventListener('click', () => {
-        const updated = _collectTokens();
-        delete updated[key];
-        _renderApiTokens(updated);
-        _autoSave({ apiTokens: updated });
-      });
+  const _NO_TOKEN = '<div class="sm-skills-empty">Aucun token configuré.</div>';
+
+  // Les valeurs enregistrées ne sont pas renvoyées à cette fenêtre : champ vide = inchangé.
+  function _tokenRow(name, { saved = false, hosts = [] } = {}) {
+    const item = document.createElement('div');
+    item.className = 'sm-token-item';
+    item.dataset.key = name;
+    item.innerHTML = `
+      <input type="text"     class="sm-token-key"   placeholder="Nom (ex: github)">
+      <input type="password" class="sm-token-value" autocomplete="off">
+      <input type="text"     class="sm-token-hosts" placeholder="Domaines autorisés (ex : api.github.com)">
+      <button class="sm-token-delete" title="Supprimer">×</button>`;
+    const keyInput = item.querySelector('.sm-token-key');
+    keyInput.value = name;
+    item.querySelector('.sm-token-value').placeholder = saved ? 'Token enregistré' : 'Bearer token…';
+    item.querySelector('.sm-token-hosts').value = hosts.join(', ');
+
+    let timer = null;
+    const debounce = () => { clearTimeout(timer); timer = setTimeout(_saveTokensFromDom, 700); };
+    // Le nom n'est pris qu'une fois validé : enregistré frappe par frappe, il passerait
+    // par des noms partiels pouvant désigner un autre token
+    keyInput.addEventListener('change', _saveTokensFromDom);
+    item.querySelector('.sm-token-value').addEventListener('input', debounce);
+    item.querySelector('.sm-token-hosts').addEventListener('input', debounce);
+    item.querySelector('.sm-token-delete').addEventListener('click', () => {
+      clearTimeout(timer);
+      item.remove();
+      const list = document.getElementById('sm-tokens-list');
+      if (!list.querySelector('.sm-token-item')) list.innerHTML = _NO_TOKEN;
+      _saveTokensFromDom();
     });
+    return item;
   }
 
-  function _collectTokens() {
-    const tokens = {};
-    document.querySelectorAll('#sm-tokens-list .sm-token-item').forEach(item => {
-      const k = item.querySelector('.sm-token-key').value.trim();
-      const v = item.querySelector('.sm-token-value').value;
-      if (k) tokens[k] = v;
-    });
-    return tokens;
+  function _renderApiTokens(cfg) {
+    const list = document.getElementById('sm-tokens-list');
+    const names = Object.keys(cfg?.apiTokens || {});
+    list.innerHTML = names.length ? '' : _NO_TOKEN;
+    names.forEach(name => list.appendChild(_tokenRow(name, {
+      saved: !!cfg.apiTokensSaved?.[name],
+      hosts: cfg.apiTokenHosts?.[name] || [],
+    })));
   }
 
   function _saveTokensFromDom() {
-    _autoSave({ apiTokens: _collectTokens() });
+    const rows = Array.from(document.querySelectorAll('#sm-tokens-list .sm-token-item'));
+    const names = rows.map(row => row.querySelector('.sm-token-key').value.trim());
+    // Un nom vide ou en double ferait perdre une valeur que la page ne détient plus
+    if (names.some(n => !n) || new Set(names).size !== names.length) {
+      _flashStatus(false, '✗ Nom de token vide ou en double — non enregistré');
+      return;
+    }
+    const tokens = [];
+    const hosts = [];
+    const renames = {};
+    rows.forEach((row, i) => {
+      const name = names[i];
+      if (row.dataset.key !== name) { renames[name] = row.dataset.key; row.dataset.key = name; }
+      tokens.push([name, row.querySelector('.sm-token-value').value]);
+      hosts.push([name, row.querySelector('.sm-token-hosts').value.split(/[\s,;]+/).filter(Boolean)]);
+    });
+    _autoSave({ apiTokens: Object.fromEntries(tokens), apiTokenHosts: Object.fromEntries(hosts) }, renames);
   }
 
   document.getElementById('sm-add-token').addEventListener('click', () => {
-    const current = _collectTokens();
-    const newKey  = `token_${Date.now()}`;
-    current[newKey] = '';
-    _renderApiTokens(current);
-    _autoSave({ apiTokens: current });
-    const items = document.querySelectorAll('#sm-tokens-list .sm-token-item');
-    if (items.length) {
-      const last = items[items.length - 1];
-      last.querySelector('.sm-token-key').select();
-      last.querySelector('.sm-token-key').focus();
-    }
+    const list = document.getElementById('sm-tokens-list');
+    if (!list.querySelector('.sm-token-item')) list.innerHTML = '';
+    const row = _tokenRow(`token_${Date.now()}`);
+    list.appendChild(row);
+    _saveTokensFromDom();
+    row.querySelector('.sm-token-key').select();
+    row.querySelector('.sm-token-key').focus();
   });
 
   // ── Handlers — Onglet MCP ─────────────────────────────────────────────────

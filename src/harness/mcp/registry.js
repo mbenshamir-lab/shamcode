@@ -31,8 +31,9 @@ class McpRegistry {
     const active = connectors.filter(c => c.enabled && c.url);
 
     for (const conn of active) {
+      let client;
       try {
-        const client = new McpClient(conn);
+        client = new McpClient(conn);
         const tools  = await client.connect();
         this._clients.set(conn.id, client);
 
@@ -49,6 +50,7 @@ class McpRegistry {
         }
         log(`MCP connecté : ${conn.name} (${tools.length} outil(s))`);
       } catch (err) {
+        client?.dispose(); // ne pas laisser tourner un serveur dont la poignée de main a échoué
         log(`MCP échec connexion [${conn.name}] : ${err.message}`);
       }
     }

@@ -4759,6 +4759,18 @@ dialog#settings-dialog[open] { display: flex; flex-direction: column; }
   padding: 0 0 2px 0;
 }
 .sm-token-value:focus { border-bottom-color: var(--accent); color: var(--text-main); }
+.sm-token-hosts {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-muted);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-family: monospace;
+  outline: none;
+  padding: 0 0 2px 0;
+}
+.sm-token-hosts:focus { border-bottom-color: var(--accent); color: var(--text-main); }
 .sm-token-delete {
   width: 20px; height: 20px;
   flex-shrink: 0;

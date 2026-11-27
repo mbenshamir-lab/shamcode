@@ -3,6 +3,7 @@ const https = require('https');
 const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
+const { backupBeforeWrite } = require('../safety/backup');
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 
@@ -27,6 +28,9 @@ async function generateImage(args, guard, projectRoot, config) {
 
   try {
     const imgData = await _customImageGenerate(args, cp.apiKey, cp.baseUrl, cp.model);
+
+    const unsaved = backupBeforeWrite(outPath, config);
+    if (unsaved) return unsaved;
 
     if (imgData.base64) {
       fs.writeFileSync(outPath, Buffer.from(imgData.base64, 'base64'));
@@ -87,7 +91,7 @@ function _jsonPost(url, headers, body) {
     const payload = Buffer.from(JSON.stringify(body));
     const u = new URL(url);
     const opts = {
-      hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
+      hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': String(payload.length), ...headers },
     };
     const req = (u.protocol === 'https:' ? https : http).request(opts, res => {
@@ -101,19 +105,28 @@ function _jsonPost(url, headers, body) {
   });
 }
 
-function _downloadBinary(url, dest) {
+function _downloadBinary(url, dest, hopsLeft = 5) {
   return new Promise((resolve, reject) => {
     const get = url.startsWith('https') ? https.get : http.get;
-    const file = fs.createWriteStream(dest);
     get(url, res => {
-      if (res.statusCode >= 300 && res.headers.location) {
-        file.close();
-        return _downloadBinary(res.headers.location, dest).then(resolve).catch(reject);
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        if (hopsLeft <= 0) return reject(new Error('TROP_DE_REDIRECTIONS'));
+        const next = new URL(res.headers.location, url).href;
+        return _downloadBinary(next, dest, hopsLeft - 1).then(resolve).catch(reject);
       }
-      res.pipe(file);
+      // Ne rien ouvrir avant d'avoir un succès : une page d'erreur écraserait la destination
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`TÉLÉCHARGEMENT_HTTP_${res.statusCode}`));
+      }
+      const file = fs.createWriteStream(dest);
+      const fail = (err) => { file.destroy(); fs.unlink(dest, () => {}); reject(err); };
+      res.on('error', fail);
+      file.on('error', fail);
       file.on('finish', () => { file.close(); resolve(); });
-      file.on('error', reject);
-    }).on('error', err => { fs.unlink(dest, () => {}); reject(err); });
+      res.pipe(file);
+    }).on('error', reject);
   });
 }
 

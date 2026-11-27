@@ -60,7 +60,10 @@ function _uriToPath(uri) {
   const p = uri.replace(/^file:\/\/\/?/, '');
   // Windows : /C:/foo → C:/foo
   const clean = /^\/[A-Za-z]:/.test(p) ? p.slice(1) : p;
-  return clean.replace(/\//g, path.sep);
+  // Les serveurs renvoient des URI encodées (« c%3A », « %20 »)
+  let decoded = clean;
+  try { decoded = decodeURIComponent(clean); } catch { /* « % » littéral */ }
+  return decoded.replace(/\//g, path.sep);
 }
 
 // ── LspClient ────────────────────────────────────────────────────────────────
@@ -71,10 +74,10 @@ class LspClient {
     this._args    = args;
     this._rootUri = rootUri;
     this._proc    = null;
-    this._buf     = '';
+    this._buf     = Buffer.alloc(0);
     this._nextId  = 1;
     this._pending = new Map();   // id → { resolve, reject, timer }
-    this._opened  = new Set();   // URIs already sent didOpen
+    this._opened  = new Map();   // URI envoyée par didOpen → { absPath, text, version }
     this._ready   = false;
     this._dead    = false;
     this._initP   = null;
@@ -170,15 +173,17 @@ class LspClient {
   // ── Réception et parsing ───────────────────────────────────────────────────
 
   _onData(chunk) {
-    this._buf += chunk.toString('utf8');
+    // Content-Length compte des octets : découper une chaîne décalerait dès le premier accent
+    this._buf = Buffer.concat([this._buf, chunk]);
     let match;
-    const re = /Content-Length: (\d+)\r\n\r\n/;
-    while ((match = re.exec(this._buf)) !== null) {
+    const re = /Content-Length: (\d+)[\s\S]*?\r\n\r\n/;
+    // latin1 : un caractère par octet, les positions restent celles du tampon
+    while ((match = re.exec(this._buf.toString('latin1'))) !== null) {
       const headerEnd = match.index + match[0].length;
       const len = parseInt(match[1], 10);
       if (this._buf.length < headerEnd + len) break;
-      const json = this._buf.slice(headerEnd, headerEnd + len);
-      this._buf  = this._buf.slice(headerEnd + len);
+      const json = this._buf.subarray(headerEnd, headerEnd + len).toString('utf8');
+      this._buf  = this._buf.subarray(headerEnd + len);
       try {
         const msg = JSON.parse(json);
         if (msg.id !== undefined && msg.id !== null) {
@@ -205,13 +210,35 @@ class LspClient {
   // ── didOpen ────────────────────────────────────────────────────────────────
 
   _openDoc(uri, absPath, langId) {
+    this._syncDocs();
     if (this._opened.has(uri)) return;
-    this._opened.add(uri);
     let text = '';
     try { text = fs.readFileSync(absPath, 'utf8'); } catch { /* fichier illisible */ }
+    this._opened.set(uri, { absPath, text, version: 1 });
     this._notify('textDocument/didOpen', {
       textDocument: { uri, languageId: langId, version: 1, text },
     });
+  }
+
+  // Le serveur se fie au contenu reçu à l'ouverture, et les outils d'écriture ne le
+  // préviennent pas : on compare avec le disque avant chaque requête
+  _syncDocs() {
+    for (const [uri, doc] of this._opened) {
+      let text;
+      try { text = fs.readFileSync(doc.absPath, 'utf8'); }
+      catch {
+        this._opened.delete(uri);
+        this._notify('textDocument/didClose', { textDocument: { uri } });
+        continue;
+      }
+      if (text === doc.text) continue;
+      doc.text = text;
+      doc.version += 1;
+      this._notify('textDocument/didChange', {
+        textDocument: { uri, version: doc.version },
+        contentChanges: [{ text }],
+      });
+    }
   }
 
   // ── Outils publics ─────────────────────────────────────────────────────────
@@ -248,7 +275,8 @@ class LspClient {
       if (this._proc) {
         this._rawSend({ jsonrpc: '2.0', id: this._nextId++, method: 'shutdown', params: null });
         this._notify('exit', null);
-        setTimeout(() => { try { this._proc.kill(); } catch {} }, 500);
+        const proc = this._proc; // this._proc est remis à null avant l'échéance
+        setTimeout(() => { try { proc.kill(); } catch {} }, 500);
       }
     } catch { /* déjà mort */ }
     this._proc = null;

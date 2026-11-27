@@ -35,7 +35,12 @@ function snapshot(absPath, maxBackups = 50) {
 
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const dir = path.join(getBackupDir(), fileKey(absPath));
-  const dest = path.join(dir, ts, path.basename(absPath));
+  let dest = path.join(dir, ts, path.basename(absPath));
+  // Deux écritures dans la même milliseconde : la seconde écraserait l'original sauvegardé.
+  // Le suffixe numéroté reste trié après l'horodatage nu.
+  for (let n = 1; fs.existsSync(dest); n++) {
+    dest = path.join(dir, `${ts}-${String(n).padStart(3, '0')}`, path.basename(absPath));
+  }
 
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -51,8 +56,9 @@ function snapshot(absPath, maxBackups = 50) {
       .map(e => e.name)
       .sort(); // ISO timestamp tri lexicographique = tri chronologique
 
-    if (entries.length > maxBackups) {
-      const toDelete = entries.slice(0, entries.length - maxBackups);
+    const keep = Math.max(1, Number(maxBackups) || 50); // jamais supprimer le snapshot créé
+    if (entries.length > keep) {
+      const toDelete = entries.slice(0, entries.length - keep);
       for (const d of toDelete) {
         fs.rmSync(path.join(dir, d), { recursive: true, force: true });
       }
@@ -67,4 +73,16 @@ function snapshot(absPath, maxBackups = 50) {
   return { ok: true, dest };
 }
 
-module.exports = { snapshot, fileKey, getBackupDir };
+/**
+ * Sauvegarde exigée avant d'écraser un fichier : sans copie de secours, on n'écrit pas.
+ * @param {string} absPath
+ * @param {{ backupBeforeWrite?: boolean, maxBackups?: number }} [config]
+ * @returns {{ ok: false, error: string } | null} un refus, ou null si la voie est libre
+ */
+function backupBeforeWrite(absPath, config = {}) {
+  if (config.backupBeforeWrite === false) return null;
+  const saved = snapshot(absPath, config.maxBackups);
+  return saved.ok ? null : { ok: false, error: `BACKUP_ÉCHOUÉ: ${saved.error}` };
+}
+
+module.exports = { snapshot, backupBeforeWrite, fileKey, getBackupDir };

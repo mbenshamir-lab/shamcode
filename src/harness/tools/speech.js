@@ -3,13 +3,14 @@ const { spawn } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
+const { backupBeforeWrite } = require('../safety/backup');
 
 /**
  * Génère un fichier audio WAV depuis un texte via Windows SAPI (Text-To-Speech intégré).
  * Fonctionne hors-ligne, gratuit, aucune dépendance npm.
  * Voix disponibles selon la langue du système Windows (ex : Zira, David, Aria).
  */
-async function generateSpeech(args, guard, projectRoot) {
+async function generateSpeech(args, guard, projectRoot, config = {}) {
   const text = String(args.text || '').trim();
   if (!text) return { ok: false, error: 'TEXTE_MANQUANT — args.text est obligatoire' };
 
@@ -22,7 +23,8 @@ async function generateSpeech(args, guard, projectRoot) {
   }
 
   const rate   = Math.min(10, Math.max(-10, Number(args.rate)   || 0));   // -10 lent … +10 rapide
-  const volume = Math.min(100, Math.max(0,  Number(args.volume) || 100));
+  const asked  = Number(args.volume ?? 100);                             // 0 = muet, valeur légitime
+  const volume = Number.isFinite(asked) ? Math.min(100, Math.max(0, asked)) : 100;
   const voice  = String(args.voice || '');
 
   // Écriture du script PowerShell dans un fichier temp pour éviter les problèmes d'échappement
@@ -32,7 +34,7 @@ async function generateSpeech(args, guard, projectRoot) {
   const outPathWin = outPath.replace(/\//g, '\\');
 
   const voiceBlock = voice
-    ? `try { $tts.SelectVoice('${voice.replace(/'/g, "''")}') } catch { <# voix non trouvée, voix par défaut #> }`
+    ? `try { $tts.SelectVoice('${_psQuote(voice)}') } catch { <# voix non trouvée, voix par défaut #> }`
     : '';
 
   const psScript = `
@@ -41,14 +43,18 @@ $tts = New-Object System.Speech.Synthesis.SpeechSynthesizer
 ${voiceBlock}
 $tts.Rate = ${rate}
 $tts.Volume = ${volume}
-$tts.SetOutputToWaveFile('${outPathWin.replace(/'/g, "''")}')
+$tts.SetOutputToWaveFile('${_psQuote(outPathWin)}')
 $tts.Speak(@'
-${text.replace(/'@/g, "' @")}
+${text.replace(/(['\u2018\u2019\u201A\u201B])@/g, '$1 @')}
 '@)
 $tts.Dispose()
 `;
 
-  fs.writeFileSync(scriptPath, psScript, 'utf8');
+  const unsaved = backupBeforeWrite(outPath, config);
+  if (unsaved) return unsaved;
+
+  // BOM : sans lui, Windows PowerShell lit le script en ANSI et déforme les accents
+  fs.writeFileSync(scriptPath, `\uFEFF${psScript}`, 'utf8');
 
   try {
     await _runPowerShell(scriptPath);
@@ -91,6 +97,11 @@ $tts.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo.Name }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** PowerShell traite aussi les apostrophes typographiques comme des délimiteurs de chaîne. */
+function _psQuote(value) {
+  return value.replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&');
+}
 
 function _runPowerShell(scriptPath) {
   return new Promise((resolve, reject) => {

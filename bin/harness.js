@@ -10,6 +10,7 @@ const path = require('path');
 const readline = require('readline');
 
 const { runAgent } = require('../src/harness/agent');
+const { stopAll }  = require('../src/harness/tools/process-runner');
 const { OpenAiCompatEngine } = require('../src/harness/llm/engines/openai-compat');
 const { GeminiEngine }       = require('../src/harness/llm/engines/gemini');
 const { ClaudeEngine }       = require('../src/harness/llm/engines/claude');
@@ -87,6 +88,7 @@ function askUserCli(question, suggestions) {
 // ── Point d'entrée principal ──────────────────────────────────────────────────
 
 async function main() {
+  process.on('exit', () => stopAll()); // aucun processus lancé par l'agent ne survit à la CLI
   const opts = parseArgs(process.argv.slice(2));
 
   if (opts.help) { printHelp(CLI_CONFIG_PATH); process.exit(0); }
@@ -133,6 +135,8 @@ async function main() {
       enableShell: opts.shell,
       // ask_user interactif dans le terminal
       requestUserInput: askUserCli,
+      // spawn_agent, spawn_parallel et fix_loop génèrent via ce callback
+      _llmGenerate: (msgs, options) => engine.generate(msgs, options),
     },
     onEvent(ev) {
       switch (ev.type) {

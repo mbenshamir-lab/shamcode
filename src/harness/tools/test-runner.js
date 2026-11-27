@@ -75,7 +75,8 @@ async function runTests(args, projectRoot, { signal } = {}) {
                      'bundle exec rspec', 'bundle exec rake test',
                      'mvn test', 'gradle test', 'dotnet test'];
     const trimmed = args.command.trim();
-    if (!allowed.some(a => trimmed === a || trimmed.startsWith(a + ' '))) {
+    // Sans l'exclusion du chaînage, « npm test && … » exécuterait n'importe quoi, shell désactivé
+    if (/[;&|`$<>\r\n]/.test(trimmed) || !allowed.some(a => trimmed === a || trimmed.startsWith(a + ' '))) {
       return { ok: false, error: `COMMANDE_TEST_NON_AUTORISÉE: ${trimmed.slice(0, 80)}` };
     }
     cmd    = trimmed;

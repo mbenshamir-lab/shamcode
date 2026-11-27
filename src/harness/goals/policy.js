@@ -90,8 +90,10 @@ function _evidenceBackedByTrace(criterion, trace) {
   if (!evidence) return false;
 
   if (evidence.kind === 'file') {
+    // Une lecture groupée liste les fichiers lus dans result.files
     return trace.some(t => t.tool === TOOLS.READ_FILE && t.result?.ok
-      && String(t.args?.path) === String(evidence.path));
+      && (String(t.args?.path) === String(evidence.path)
+        || t.result.files?.some(f => f.ok && String(f.path) === String(evidence.path))));
   }
   if (evidence.kind === 'test') {
     return trace.some(t => t.tool === TOOLS.RUN_TESTS && t.result?.ok);
@@ -103,9 +105,19 @@ function _evidenceBackedByTrace(criterion, trace) {
   return false;
 }
 
+/** Fichiers modifiés par une entrée : batch_replace et fix_loop les listent dans leur résultat. */
+function _touchedPaths(entry) {
+  // Une boucle de correction en échec a pu écrire avant d'échouer
+  if (entry.tool === TOOLS.FIX_LOOP) return entry.result?.modified_files || [];
+  if (!MOD_TOOLS.has(entry.tool) || !entry.result?.ok) return [];
+  if (entry.tool === TOOLS.BATCH_REPLACE) {
+    return (entry.result.results || []).filter(r => r.modified).map(r => r.path);
+  }
+  return [String(entry.args?.path || '')];
+}
+
 function _touchesDependencyFile(trace) {
-  return trace.some(t => MOD_TOOLS.has(t.tool) && t.result?.ok
-    && DEPENDENCY_FILES.some(f => String(t.args?.path || '').endsWith(f)));
+  return trace.some(t => _touchedPaths(t).some(p => DEPENDENCY_FILES.some(f => p.endsWith(f))));
 }
 
 /**

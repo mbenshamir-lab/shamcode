@@ -7,7 +7,7 @@
  * N'importe JAMAIS electron — conforme à la règle harness.
  */
 
-const { spawn }    = require('child_process');
+const { spawn, execFile } = require('child_process');
 const readline     = require('readline');
 const http         = require('http');
 const https        = require('https');
@@ -69,16 +69,25 @@ class McpClient extends EventEmitter {
       const [bin, ...rest] = cmd.trim().split(/\s+/);
       const allArgs = [...rest, ...argList];
 
-      this._proc = spawn(bin, allArgs, {
+      // Windows : npx, npm… sont des scripts .cmd que spawn ne lance qu'à travers cmd.exe
+      this._viaCmd = process.platform === 'win32' && /^(npx|npm|pnpm|yarn)$|\.(cmd|bat)$/i.test(bin);
+      const [file, fileArgs] = this._viaCmd
+        ? ['cmd.exe', ['/d', '/s', '/c', bin, ...allArgs]]
+        : [bin, allArgs];
+
+      this._proc = spawn(file, fileArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       });
 
       this._proc.on('error', err => {
-        this.emit('error', err);
+        // Un événement « error » sans auditeur lève, et ferait tomber le processus principal
+        if (this.listenerCount('error') > 0) this.emit('error', err);
         this._rejectAll(`Processus MCP: ${err.message}`);
         reject(err);
       });
+      // Processus mort : l'écriture suivante échoue (EPIPE), la requête expirera
+      this._proc.stdin?.on('error', () => {});
 
       this._rl = readline.createInterface({ input: this._proc.stdout });
       this._rl.on('line', line => this._handleLine(line));
@@ -130,7 +139,8 @@ class McpClient extends EventEmitter {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(body),
     };
-    if (auth) headers['Authorization'] = `Bearer ${auth}`;
+    // Le préfixe est parfois saisi avec le token : ne pas l'envoyer deux fois
+    if (auth) headers['Authorization'] = `Bearer ${String(auth).replace(/^\s*Bearer\s+/i, '')}`;
 
     return new Promise((resolve, reject) => {
       const lib = useHttps ? https : http;
@@ -247,7 +257,11 @@ class McpClient extends EventEmitter {
     if (this._rl) { try { this._rl.close(); } catch {} }
     if (this._proc) {
       try { this._proc.stdin?.end(); } catch {}
-      try { this._proc.kill('SIGTERM'); } catch {}
+      try {
+        // Sous cmd.exe, kill() laisserait le serveur lui-même en vie
+        if (this._viaCmd && this._proc.pid) execFile('taskkill', ['/PID', String(this._proc.pid), '/T', '/F'], () => {});
+        else this._proc.kill('SIGTERM');
+      } catch {}
     }
   }
 

@@ -6,53 +6,42 @@
 const fs   = require('fs');
 const path = require('path');
 const { getBackupDir, fileKey } = require('../safety/backup');
+const { getIgnore } = require('../safety/harnessignore');
+const { diffArrays } = require('diff');
 
 /**
- * LCS-based diff entre deux tableaux de lignes.
- * Limité à 500 lignes chacun pour éviter O(n²) sur de gros fichiers.
+ * Diff ligne par ligne, sur le fichier entier.
  * Retourne [{ type: '+' | '-' | '=', text }]
  */
 function _diff(oldLines, newLines) {
-  const MAX = 500;
-  const a = oldLines.slice(0, MAX);
-  const b = newLines.slice(0, MAX);
-  const m = a.length, n = b.length;
-
-  // Tableau DP
-  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1] + 1
-        : Math.max(dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-
-  // Retrace
-  const result = [];
-  let i = m, j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      result.unshift({ type: '=', text: a[i - 1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.unshift({ type: '+', text: b[j - 1] });
-      j--;
-    } else {
-      result.unshift({ type: '-', text: a[i - 1] });
-      i--;
-    }
-  }
-  return result;
+  return diffArrays(oldLines, newLines).flatMap(part => {
+    const type = part.added ? '+' : part.removed ? '-' : '=';
+    return part.value.map(text => ({ type, text }));
+  });
 }
 
 const MAX_DIFF_LINES = 200;
+const CONTEXT_LINES  = 3;
 
-function diffFile({ path: relPath, backup_index = 0 } = {}, guard) {
+/** Sur un long diff, garde les changements et leur voisinage : les premières lignes seules les manqueraient. */
+function _aroundChanges(lines) {
+  if (lines.length <= MAX_DIFF_LINES) return lines;
+  const keep = new Set();
+  lines.forEach((line, i) => {
+    if (line.type === '=') return;
+    for (let j = i - CONTEXT_LINES; j <= i + CONTEXT_LINES; j++) keep.add(j);
+  });
+  return lines.filter((_, i) => keep.has(i)).slice(0, MAX_DIFF_LINES);
+}
+
+function diffFile({ path: relPath, backup_index = 0 } = {}, guard, projectRoot = '') {
   if (!relPath) return { ok: false, error: 'DIFF_SANS_CHEMIN' };
 
   let absPath;
   try { absPath = guard(relPath); } catch (e) { return { ok: false, error: e.message }; }
+  if (projectRoot && getIgnore(projectRoot).isIgnored(path.relative(path.resolve(projectRoot), absPath))) {
+    return { ok: false, error: 'FICHIER_IGNORÉ: ce fichier est exclu par .harnessignore' };
+  }
 
   const basename    = path.basename(absPath);
   const backupDir   = path.join(getBackupDir(), fileKey(absPath));
@@ -94,7 +83,7 @@ function diffFile({ path: relPath, backup_index = 0 } = {}, guard) {
     backup_from: backups[backup_index].timestamp,
     added,
     removed,
-    diff_lines:  diffResult.slice(0, MAX_DIFF_LINES),
+    diff_lines:  _aroundChanges(diffResult),
     truncated,
   };
 }

@@ -19,6 +19,8 @@ async function addRule(args, config) {
   if (typeof config.saveConfig === 'function') {
     await config.saveConfig({ customRules: rules });
   }
+  // config est une copie propre à la tâche : sans cela, l'ajout suivant écraserait celui-ci
+  config.customRules = rules;
 
   return { ok: true, rule };
 }
@@ -40,6 +42,7 @@ async function deleteRule(args, config) {
   if (typeof config.saveConfig === 'function') {
     await config.saveConfig({ customRules: updated });
   }
+  config.customRules = updated;
 
   return { ok: true, deleted: rules.length - updated.length };
 }
@@ -64,6 +67,7 @@ async function installSkill(args, config) {
   if (typeof config.saveConfig === 'function') {
     await config.saveConfig({ customSkills: skills });
   }
+  config.customSkills = skills;
 
   return { ok: true, skill };
 }
@@ -85,6 +89,7 @@ async function removeSkill(args, config) {
   if (typeof config.saveConfig === 'function') {
     await config.saveConfig({ customSkills: updated });
   }
+  config.customSkills = updated;
 
   return { ok: true, deleted: skills.length - updated.length };
 }

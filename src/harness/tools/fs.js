@@ -8,7 +8,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { snapshot }          = require('../safety/backup');
+const { backupBeforeWrite: _backup } = require('../safety/backup');
 const { buildWritePreview } = require('../safety/diff');
 const { getIgnore } = require('../safety/harnessignore');
 const { formatFile } = require('./formatter');
@@ -56,6 +56,34 @@ function normFuzzy(str) {
   return normLf(str).split('\n').map(l => l.trimEnd()).join('\n');
 }
 
+const IGNORED_ERROR = 'FICHIER_IGNORÉ: ce fichier est exclu par .harnessignore';
+
+/** Teste le chemin résolu : « ./x », « a/../x » ou un chemin absolu ne contournent rien. */
+function _isIgnored(abs, projectRoot) {
+  if (!projectRoot) return false;
+  return getIgnore(projectRoot).isIgnored(path.relative(path.resolve(projectRoot), abs));
+}
+
+/**
+ * Remplace, dans le contenu d'origine, la zone repérée sur sa version normalisée
+ * (CRLF et espaces de fin ignorés) : les autres lignes restent à l'octet près.
+ */
+function _spliceFuzzy(raw, normalized, found, oldLength, replacement) {
+  const rawLines  = raw.split('\n');
+  const normLines = normalized.split('\n');
+  // Position dans le texte d'origine d'une position dans le texte normalisé
+  const toRaw = (offset, isEnd) => {
+    let line = 0;
+    let col  = offset;
+    while (col > normLines[line].length) { col -= normLines[line].length + 1; line++; }
+    const before = rawLines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
+    // Une zone qui finit en bout de ligne emporte les espaces de fin, mais pas le \r
+    if (isEnd && col > 0 && col === normLines[line].length) col = rawLines[line].replace(/\r$/, '').length;
+    return before + col;
+  };
+  return raw.slice(0, toRaw(found, false)) + replacement + raw.slice(toRaw(found + oldLength, true));
+}
+
 /**
  * Lit un fichier texte.
  * Supporte une plage de lignes optionnelle (1-indexé, inclusif).
@@ -67,12 +95,9 @@ function normFuzzy(str) {
  */
 function readFile({ path: relPath, start_line, end_line }, guard, projectRoot = '') {
   try {
-    // Vérification .harnessignore avant d'accéder au disque
-    if (projectRoot && getIgnore(projectRoot).isIgnored(relPath)) {
-      return { ok: false, error: 'FICHIER_IGNORÉ: ce fichier est exclu par .harnessignore' };
-    }
-
     const abs   = guard(relPath);
+    // Vérification .harnessignore avant de lire le contenu
+    if (_isIgnored(abs, projectRoot)) return { ok: false, error: IGNORED_ERROR };
     const raw   = fs.readFileSync(abs, 'utf8');
     const lines = raw.split('\n');
     const total = lines.length;
@@ -160,11 +185,13 @@ async function writeFile({ path: relPath, content }, guard, config = {}, onEvent
       onEvent(preview);
     }
 
-    if (config.backupBeforeWrite !== false) snapshot(abs);
+    const unsaved = _backup(abs, config);
+    if (unsaved) return unsaved;
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content, 'utf8');
     if (config.autoFormat && config._guard) {
-      await formatFile({ path: relPath }, config._guard, config._projectRoot || '').catch(() => {});
+      // Déjà sauvegardé avant l'écriture : une seconde copie masquerait la version d'origine
+      await formatFile({ path: relPath }, config._guard, config._projectRoot || '', { backupBeforeWrite: false }).catch(() => {});
     }
     const secretWarnings = _detectSecrets(content);
     return { ok: true, path: relPath, ...(secretWarnings.length ? { secretWarnings } : {}) };
@@ -184,9 +211,11 @@ async function writeFile({ path: relPath, content }, guard, config = {}, onEvent
  * @param {{ backupBeforeWrite?: boolean, requestApproval?: Function }} config
  * @param {Function} onEvent
  */
-async function replaceCode({ path: relPath, old_string, new_string }, guard, config = {}, onEvent = () => {}) {
+async function replaceCode({ path: relPath, old_string, new_string }, guard, config = {}, onEvent = () => {}, projectRoot = '') {
   try {
     const abs  = guard(relPath);
+    // L'indice renvoyé sur BLOC_INTROUVABLE cite le fichier : il fuirait un contenu exclu
+    if (_isIgnored(abs, projectRoot)) return { ok: false, error: IGNORED_ERROR };
     const raw  = fs.readFileSync(abs, 'utf8');
     const norm = normLf(raw);
     const oldN = normLf(old_string);
@@ -200,11 +229,17 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
 
     const hasCrlf = raw.includes('\r\n');
 
+    // Le texte inséré adopte les fins de ligne du fichier
+    const inserted = hasCrlf ? normLf(new_string).replace(/\n/g, '\r\n') : new_string;
+
     if (countExact === 1) {
       // Remplacement par fonction : dans une chaîne, `$'` ou `$&` seraient interprétés
       // et dupliqueraient une partie du fichier.
-      const updated = raw.replace(old_string, () => new_string);
-      final = updated !== raw ? updated : norm.replace(oldN, () => normLf(new_string));
+      // Variante CRLF d'abord : un bloc commençant par « \n » laisserait sinon un \r orphelin
+      const target = [oldN.replace(/\n/g, '\r\n'), old_string].find(t => raw.includes(t));
+      final = target !== undefined
+        ? raw.replace(target, () => inserted)
+        : norm.replace(oldN, () => normLf(new_string)); // fins de ligne mélangées
     } else {
       // ── Fallback fuzzy : normalise aussi les espaces en fin de ligne ────────
       const normF = normFuzzy(raw);
@@ -228,7 +263,7 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
         return { ok: false, error: 'BLOC_INTROUVABLE', hint };
       }
       if (countFuzzy > 1)   return { ok: false, error: 'BLOC_AMBIGU' };
-      final = normF.replace(oldF, () => normLf(new_string));
+      final = _spliceFuzzy(raw, normF, normF.indexOf(oldF), oldF.length, inserted);
       fuzzy = true;
     }
 
@@ -247,7 +282,8 @@ async function replaceCode({ path: relPath, old_string, new_string }, guard, con
       onEvent(preview);
     }
 
-    if (config.backupBeforeWrite !== false) snapshot(abs);
+    const unsaved = _backup(abs, config);
+    if (unsaved) return unsaved;
     fs.writeFileSync(abs, final, 'utf8');
     const secretWarnings = _detectSecrets(final);
     return { ok: true, path: relPath, ...(fuzzy ? { fuzzy: true } : {}), ...(secretWarnings.length ? { secretWarnings } : {}) };
@@ -333,9 +369,8 @@ async function deleteFile({ path: relPath }, guard, config = {}, onEvent = () =>
     const content = fs.readFileSync(abs, 'utf8');
 
     // Backup obligatoire avant toute suppression
-    if (config.backupBeforeWrite !== false) {
-      snapshot(abs, config.maxBackups);
-    }
+    const unsaved = _backup(abs, config);
+    if (unsaved) return unsaved;
 
     const preview = {
       type:     'write_preview',
@@ -381,9 +416,8 @@ async function moveFile({ path: relSrc, dest: relDest }, guard, config = {}, onE
     if (fs.existsSync(absDest)) return { ok: false, error: 'DESTINATION_DÉJÀ_EXISTANTE' };
 
     // Backup de la source avant toute modification
-    if (config.backupBeforeWrite !== false) {
-      snapshot(absSrc, config.maxBackups);
-    }
+    const unsaved = _backup(absSrc, config);
+    if (unsaved) return unsaved;
 
     const preview = {
       type:   'write_preview',

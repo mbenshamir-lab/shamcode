@@ -17,13 +17,13 @@
 
 const SCHEMAS = {
   read_file:      { required: { path: 'string' }, example: { path: 'src/app.js' } },
-  write_file:     { required: { path: 'string', content: 'string' }, example: { path: 'src/notes.md', content: '# Titre\n' } },
-  replace_code:   { required: { path: 'string', old_string: 'string', new_string: 'string' }, example: { path: 'src/app.js', old_string: 'const a = 1;', new_string: 'const a = 2;' } },
+  write_file:     { required: { path: 'string', content: 'string' }, allowEmpty: ['content'], example: { path: 'src/notes.md', content: '# Titre\n' } },
+  replace_code:   { required: { path: 'string', old_string: 'string', new_string: 'string' }, allowEmpty: ['new_string'], example: { path: 'src/app.js', old_string: 'const a = 1;', new_string: 'const a = 2;' } },
   delete_file:    { required: { path: 'string' }, example: { path: 'src/old.js' } },
   move_file:      { required: { path: 'string', dest: 'string' }, example: { path: 'src/a.js', dest: 'src/b.js' } },
   format_file:    { required: { path: 'string' }, example: { path: 'src/app.js' } },
   diff_file:      { required: { path: 'string' }, example: { path: 'src/app.js' } },
-  batch_replace:  { required: { pattern: 'string', replacement: 'string' }, example: { pattern: 'console\\.log', replacement: 'logger.info' } },
+  batch_replace:  { required: { pattern: 'string', replacement: 'string' }, allowEmpty: ['replacement'], example: { pattern: 'console\\.log', replacement: 'logger.info' } },
   search_grep:    { required: { pattern: 'string' }, example: { pattern: 'TODO', path: 'src' } },
   find_symbol:    { required: { name: 'string' }, example: { name: 'runAgent' } },
   read_url:       { required: { url: 'string' }, example: { url: 'https://example.com/doc' } },
@@ -79,7 +79,9 @@ function validateArgs(toolName, args) {
 
   for (const [key, type] of Object.entries(schema.required)) {
     const v = value[key];
-    const missing = v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+    // Texte vide légitime : créer un fichier vide, supprimer un bloc
+    const blank = typeof v === 'string' && v.trim() === '' && !schema.allowEmpty?.includes(key);
+    const missing = v === undefined || v === null || blank;
     if (missing) {
       return {
         ok: false,

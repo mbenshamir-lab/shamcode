@@ -21,6 +21,29 @@ function _withoutRootPrefix(root, relPath) {
 }
 
 /**
+ * Chemin réel de `abs`, ou de son premier ancêtre existant.
+ * @param {string} abs
+ * @returns {string|null}
+ */
+function _realOfExisting(abs) {
+  let current = abs;
+  for (;;) {
+    try {
+      return fs.realpathSync(current);
+    } catch (e) {
+      if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e;
+      // Lien cassé : une écriture créerait sa cible, hors du projet peut-être
+      if (fs.lstatSync(current, { throwIfNoEntry: false })?.isSymbolicLink()) {
+        throw new Error(`PATH_GUARD: lien cassé — ${current}`);
+      }
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+/**
  * Crée un garde-fou FS pour un projectRoot donné.
  * La fonction retournée résout un chemin relatif en absolu
  * et lève une erreur si le chemin sort du projet ou est un symlink sortant.
@@ -49,15 +72,14 @@ function makeGuard(projectRoot) {
       throw new Error(`PATH_GUARD: chemin hors projet — ${abs}`);
     }
 
-    // Refus si symlink sortant
-    try {
-      const real = fs.realpathSync(abs);
-      if (!real.startsWith(root + path.sep) && real !== root) {
-        throw new Error(`PATH_GUARD: symlink sortant détecté — ${abs} → ${real}`);
-      }
-    } catch (e) {
-      // Le fichier n'existe pas encore (write_file) : pas de symlink à vérifier
-      if (e.code !== 'ENOENT') throw e;
+    // Refus si symlink sortant. Un fichier à créer n'a pas de chemin réel, mais l'un de
+    // ses dossiers parents peut être un lien : on résout donc le premier ancêtre existant.
+    // La racine est résolue elle aussi, un projet pouvant être ouvert via un lien.
+    const real = _realOfExisting(abs);
+    const realRoot = _realOfExisting(root);
+    // Racine inexistante : l'ancêtre trouvé est au-dessus d'elle, aucun lien à suivre
+    if (real && fs.existsSync(root) && !real.startsWith(realRoot + path.sep) && real !== realRoot) {
+      throw new Error(`PATH_GUARD: symlink sortant détecté — ${abs} → ${real}`);
     }
 
     return abs;

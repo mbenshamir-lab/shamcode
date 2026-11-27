@@ -621,7 +621,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   function _activeProviderOf(cfg) {
     const id = cfg?.model?.activeProvider;
     if (!id) return null;
-    return (cfg?.customProviders || []).find(p => p.id === id && p.baseUrl && p.apiKey) || null;
+    return (cfg?.customProviders || []).find(p => p.id === id && p.baseUrl && p.hasKey) || null;
   }
 
   function _updateModelPill(cfg) {
@@ -666,7 +666,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     engineLabel.textContent = model;
     // WebLLM et CPU ne demandent aucune clé : ne jamais afficher « Clé manquante ».
     const localEngine = primary === 'webllm' || primary === 'cpu';
-    const hasKey = active ? !!active.apiKey : (localEngine || !!(engineCfg.apiKey || engineCfg.apiKeyEncrypted));
+    const hasKey = active ? !!active.hasKey : (localEngine || !!(engineCfg.hasKey));
     engineState.textContent = hasKey ? 'Prêt' : 'Clé manquante';
     engineDot.className = 'engine-dot ' + (hasKey ? 'ready' : 'error');
     const root = cfg?.projectRoot || '';
@@ -742,7 +742,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   async function _loadModelsIntoPill(force = false) {
     const primary   = currentConfig?.model?.primary || 'openai-compat';
     const engineCfg = currentConfig?.model?.engines?.[primary] || {};
-    const secondary = (currentConfig?.customProviders || []).filter(p => p.apiKey && p.baseUrl);
+    const secondary = (currentConfig?.customProviders || []).filter(p => p.hasKey && p.baseUrl);
 
     // Cache mémorisé (sauf si force=true, déclenché par ↻)
     if (!force && Array.isArray(engineCfg.availableModels) && engineCfg.availableModels.length) {
@@ -750,12 +750,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Appel API live avec la vraie clé
+    // Appel API live : le processus principal fournit la clé enregistrée
     modelDropdownList.innerHTML = '<div class="model-dropdown-loading">Chargement…</div>';
     try {
-      const apiKey  = engineCfg.apiKey || '';
       const baseUrl = engineCfg.baseUrl || '';
-      const res = await window.harness.listModels({ engine: primary, apiKey, baseUrl });
+      const res = await window.harness.listModels({ engine: primary, apiKey: '', baseUrl });
       if (!res.ok) throw new Error(res.error);
       const models = res.models;
       // Mémorise la liste fraîche
@@ -2230,10 +2229,12 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
     // 2. Inline : code, gras, italique — appliqué à un fragment (titre, puce, ligne)
     //    Les chemins de fichiers deviennent des liens cliquables (visionneuse).
     function inline(s) {
+      const spans = []; // code mis de côté : ses * ne formatent rien
       const out = s
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/`([^`]+)`/g, (_, c) => `\x01${spans.push(c) - 1}\x01`)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/\x01(\d+)\x01/g, (_, i) => `<code>${spans[i]}</code>`);
       return _linkifyFiles(out);
     }
 
@@ -3919,6 +3920,11 @@ const _mediaCardSeen = new Set(); // évite de dupliquer une carte média
       : (_schedCronPreset?.value || '');
     if (!label || !task || !cron) return;
     const res = await window.harness.scheduleAdd({ label, task, cron });
+    if (res?.error === 'CRON_INVALIDE') {
+      _schedCronCustom.setCustomValidity('Expression cron invalide');
+      _schedCronCustom.reportValidity();
+      _schedCronCustom.addEventListener('input', () => _schedCronCustom.setCustomValidity(''), { once: true });
+    }
     if (res?.ok) {
       document.getElementById('sched-label').value = '';
       document.getElementById('sched-task').value  = '';

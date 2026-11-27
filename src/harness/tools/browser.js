@@ -20,6 +20,7 @@ async function _getPuppeteer() {
 function _setPuppeteerMock(mock) { _puppeteerOverride = mock; _puppeteer = null; }
 const path = require('path');
 const fs   = require('fs');
+const { backupBeforeWrite } = require('../safety/backup');
 
 // Chemins courants de Chrome sur Windows
 const CHROME_PATHS = [
@@ -85,7 +86,8 @@ async function browserOpen(args) {
 
     return { ok: true, status: 'ouvert', url: _page.url() };
   } catch (err) {
-    _browser = null; _page = null;
+    // Page injoignable : fermer le navigateur déjà lancé, sinon il reste orphelin
+    await browserClose();
     return { ok: false, error: err.message };
   }
 }
@@ -103,7 +105,7 @@ async function browserNavigate(args) {
   }
 }
 
-async function browserScreenshot(args, guard, projectRoot) {
+async function browserScreenshot(args, guard, projectRoot, config = {}) {
   const err = _requireBrowser(); if (err) return err;
   const { path: relPath = 'screenshot.png', selector, full_page = false } = args || {};
 
@@ -116,13 +118,11 @@ async function browserScreenshot(args, guard, projectRoot) {
     }
 
     const options = { path: absPath, fullPage: full_page };
-    if (selector) {
-      const el = await _page.$(selector);
-      if (!el) return { ok: false, error: `SÉLECTEUR_INTROUVABLE: ${selector}` };
-      await el.screenshot(options);
-    } else {
-      await _page.screenshot(options);
-    }
+    const el = selector ? await _page.$(selector) : null;
+    if (selector && !el) return { ok: false, error: `SÉLECTEUR_INTROUVABLE: ${selector}` };
+    const unsaved = backupBeforeWrite(absPath, config);
+    if (unsaved) return unsaved;
+    await (el || _page).screenshot(options);
     return { ok: true, path: relPath, absPath };
   } catch (e) {
     return { ok: false, error: e.message };

@@ -1,10 +1,12 @@
 /**
  * Chiffrement des clés API via safeStorage d'Electron.
- * Les clés ne sont jamais stockées en clair dans config.json.
+ * Les secrets ne sont jamais stockés en clair dans config.json (ADR-041).
  *
- * Format dans config.json :
+ * Format dans config.json (la forme en clair y est vide ou absente) :
  *   model.engines.<name>.apiKeyEncrypted = "<base64>"
- *   model.engines.<name>.apiKey          = "" (vide ou absent)
+ *   customProviders[].apiKeyEncrypted    = "<base64>"
+ *   connectors[].authEncrypted           = "<base64>"
+ *   apiTokensEncrypted.<nom>             = "<base64>"
  *
  * safeStorage utilise le trousseau OS (Windows: DPAPI, Mac: Keychain).
  * Comportement variable selon l'installation Electron — fallback base64 si indisponible.
@@ -87,37 +89,65 @@ function resolveApiKey(engineCfg = {}) {
   return '';
 }
 
+/** @returns {boolean} false si les secrets ne sont qu'encodés en base64 (safeStorage inopérant) */
+function secretsAreEncrypted() {
+  return _dpapiWorks();
+}
+
+/** Objets de la config portant un secret, avec le nom du champ concerné. */
+function _secretEntries(config) {
+  return [
+    ...Object.values(config?.model?.engines || {}).map(e => [e, 'apiKey']),
+    ...(config?.customProviders || []).map(p => [p, 'apiKey']),
+    ...(config?.connectors || []).map(c => [c, 'auth']),
+  ];
+}
+
 /**
- * Prépare la config à sauvegarder : chiffre les clés en clair et vide apiKey.
+ * Prépare la config à sauvegarder : chiffre les secrets en clair et les vide.
+ * Un secret déjà vide garde sa forme chiffrée : indéchiffrable aujourd'hui, il n'est pas perdu.
  * Modifie une copie de la config — n'altère PAS l'objet en mémoire.
  * @param {object} config
  * @returns {object} config sérialisable
  */
 function prepareConfigForSave(config) {
   const out = JSON.parse(JSON.stringify(config));
-  const engines = out?.model?.engines || {};
-  for (const [, engineCfg] of Object.entries(engines)) {
-    if (engineCfg.apiKey) {
-      engineCfg.apiKeyEncrypted = encryptKey(engineCfg.apiKey);
-      engineCfg.apiKey = '';
+  for (const [entry, field] of _secretEntries(out)) {
+    if (entry[field]) {
+      entry[`${field}Encrypted`] = encryptKey(entry[field]);
+      entry[field] = '';
     }
+  }
+  if (out.apiTokens) {
+    // Reconstruite à partir des noms présents : un token retiré ne laisse rien derrière lui
+    const sealed = [];
+    for (const [name, value] of Object.entries(out.apiTokens)) {
+      const encrypted = value ? encryptKey(value) : out.apiTokensEncrypted?.[name];
+      if (encrypted) sealed.push([name, encrypted]);
+      out.apiTokens[name] = '';
+    }
+    out.apiTokensEncrypted = Object.fromEntries(sealed);
   }
   return out;
 }
 
 /**
- * Résout toutes les clés API après chargement de la config.
- * Renseigne apiKey en mémoire à partir de apiKeyEncrypted.
+ * Résout tous les secrets après chargement de la config.
+ * Renseigne les champs en clair à partir de leur forme chiffrée.
  * Modifie l'objet config en place (en mémoire uniquement).
  * @param {object} config
  */
 function resolveAllKeys(config) {
-  const engines = config?.model?.engines || {};
-  for (const engineCfg of Object.values(engines)) {
-    if (!engineCfg.apiKey && engineCfg.apiKeyEncrypted) {
-      engineCfg.apiKey = decryptKey(engineCfg.apiKeyEncrypted);
-    }
+  for (const [entry, field] of _secretEntries(config)) {
+    const sealed = entry[`${field}Encrypted`];
+    if (!entry[field] && sealed) entry[field] = decryptKey(sealed);
+  }
+  for (const [name, sealed] of Object.entries(config?.apiTokensEncrypted || {})) {
+    const tokens = config.apiTokens;
+    if (tokens && Object.hasOwn(tokens, name) && !tokens[name]) tokens[name] = decryptKey(sealed);
   }
 }
 
-module.exports = { encryptKey, decryptKey, resolveApiKey, prepareConfigForSave, resolveAllKeys };
+module.exports = {
+  encryptKey, decryptKey, resolveApiKey, prepareConfigForSave, resolveAllKeys, secretsAreEncrypted,
+};

@@ -398,3 +398,39 @@
 **Décision** : `read_file` accepte `{ "paths": [...] }` (max 8) à la place de `path`. `fs.js` `readFiles` lit chaque fichier via `readFile` (donc `guard` et `.harnessignore`), renvoie `content` (blocs `=== chemin (N lignes) ===`) et `files[]` ; un échec partiel n'annule pas les autres, aucun fichier lu donne `AUCUN_FICHIER_LU`. `agent.js` passe à chaque fichier sa part du plafond de résultat (`_maxChars`, donc un gros fichier ne masque pas les suivants), et compte les fichiers lus avec succès pour la preuve de `finish` et la détection de stagnation. `validate.js` et le prompt (règle 6) acceptent la forme. Le contrat `{ path }` existant est inchangé.
 **Conséquences** : N lectures en 1 tour. La lecture groupée ne passe pas par le cache `read_file` (pas de « déjà lu »).
 **Alternatives rejetées** : lots d'appels génériques (option A : change le contrat du parser, risqué sous 3B).
+
+---
+
+## ADR-041 : Protection des secrets et des tokens d'API
+
+**Date** : 2026-11-26
+**Contexte** : seules les clés des moteurs étaient chiffrées sur disque ; celles des fournisseurs personnalisés, les `apiTokens` et l'authentification MCP étaient en clair. Les renderers recevaient toutes les clés déchiffrées, et `call_api` envoyait un token à n'importe quelle URL choisie par le modèle. Proposition : `docs/PROPOSITION_SECRETS.md`, validée en entier.
+**Décision** :
+1. `config.apiTokenHosts { nom: [domaines] }` : `call_api` n'envoie un token qu'à un domaine déclaré, en HTTPS (HTTP vers localhost seulement), sans suivre les redirections. Un token sans domaine est refusé. `apiTokens` garde son format.
+2. `safe-keys.js` chiffre aussi `customProviders[].apiKey`, `apiTokens` (`apiTokensEncrypted`) et `connectors[].auth`. Migration à la première sauvegarde. Un secret indéchiffrable garde sa forme chiffrée. Si `safeStorage` est inopérant : repli base64 conservé, avec un avertissement dans les Paramètres.
+3. `main/public-config.js` : `config:get` et `config:updated` ne portent plus aucun secret, seulement `hasKey` / `hasAuth` / `apiTokensSaved`. `config:set` fusionne (fournisseurs et connecteurs par `id`, tokens par nom, `apiTokenRenames` pour un renommage) : champ vide ou absent = inchangé, entrée retirée = secret supprimé. `models:list` accepte `providerId` et n'envoie alors la clé enregistrée qu'à l'URL enregistrée.
+**Conséquences** : les tokens existants sont refusés tant qu'aucun domaine n'est saisi. Une version antérieure de l'application ne relit pas les secrets nouvellement chiffrés. La CLI reste en clair (pas de `safeStorage`). Limite : le masquage retire les clés des renderers, mais un renderer compromis peut encore modifier l'URL de base d'un moteur ou d'un fournisseur et y faire envoyer la clé enregistrée.
+**Alternatives rejetées** : approbation à chaque usage d'un token (sans effet en mode Action) ; premier domaine mémorisé (le premier appel peut être le piège) ; valeur factice côté interface (sauvegardée par erreur, elle détruit la clé).
+
+---
+
+## ADR-042 : Environnement filtré pour la commande libre de déploiement
+
+**Date** : 2026-11-26
+**Contexte** : ADR-034 laissait à `deploy` tout l'environnement. Son argument `command` permettait donc au modèle de lire les secrets que `run_shell` lui cache.
+**Décision** : amende ADR-034 : avec `command`, l'environnement est filtré comme pour `run_shell`. La plateforme détectée garde l'environnement complet.
+**Conséquences** : une commande libre ne peut plus utiliser un jeton pris dans l'environnement. Limite : la plateforme détectée exécute des scripts du projet, que l'agent peut modifier, avec tout l'environnement.
+**Alternatives rejetées** : filtrer aussi la plateforme détectée (le déploiement n'aurait plus ses jetons).
+
+---
+
+## ADR-043 : Arrêter les boucles stériles
+
+**Date** : 2026-11-26
+**Contexte** : réponses illisibles (75 générations en simulation), outil interdit répété, écriture qui alterne, test qui échoue toujours pareil et attente d'un service échappaient à ADR-039. Rejoué sur les sessions réelles, le détecteur n'arrêtait aucun des trois échecs. Proposition `docs/PROPOSITION_BOUCLES_STERILES.md`, validée en entier avec ses choix recommandés.
+**Décision** (dans `agent.js`) :
+1. **Réponses inutilisables** (illisible, sans outil, hors périmètre), reprises comprises, comptées sur les 20 dernières générations : avertissement à 6, arrêt `RÉPONSES_INUTILISABLES` à 10 (14 pour un moteur local). `parser.js` renvoie en plus les noms des clés reçues sans `tool` ; ils sont journalisés, jamais les valeurs.
+2. **Progrès réel** : une écriture ne compte que si un fichier prend un contenu inédit. Un même échec de `run_tests` ou `run_shell` (sortie sans durées ni dates) avertit à 3 et arrête `ÉCHEC_RÉPÉTÉ` à 6 ; le compte repart quand la commande réussit ou qu'un fichier jamais modifié est touché.
+3. **Attente** : dès la 3ᵉ consultation d'affilée, pause de 2, 4, 8, 16 puis 30 s ; avertissement à la 8ᵉ, arrêt `ATTENTE_SANS_FIN` à la 15ᵉ. `config._sleep` remplace la pause dans les tests.
+**Conséquences** : les journaux de fin portent `llm_calls`, `unusable_replies` et `poll_wait_s`. Une attente de plus de 5 minutes sans autre action est coupée ; les attentes ordinaires sont plus lentes. Seuils tirés d'une simulation et de huit sessions : à réviser sur des mesures.
+**Alternatives rejetées** : seuil d'échecs d'affilée (jamais plus de 2 en réel) ; délai sur résultat identique (22 résultats sur 23 différaient) ; paramètre d'attente dans les outils (change les schémas MCP).
