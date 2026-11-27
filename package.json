@@ -1,6 +1,6 @@
 {
   "name": "code-harness",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "ShamCode — agent de code desktop local (LLM local via WebGPU + fallback cloud), développé par ShamDev",
   "productName": "ShamCode",
   "main": "src/main/main.js",
