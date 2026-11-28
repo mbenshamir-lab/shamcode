@@ -7,7 +7,7 @@
 'use strict';
 
 const { runTests } = require('./test-runner');
-const { DEFAULT_TEMPERATURE } = require('../../shared/constants');
+const { DEFAULT_TEMPERATURE, MAX_TASK_TOKENS } = require('../../shared/constants');
 
 // Outils acceptés dans la boucle de fix — lecture/écriture fichier uniquement
 const ALLOWED_FIX_TOOLS = new Set(['replace_code', 'write_file', 'batch_replace']);
@@ -124,9 +124,20 @@ async function fixLoop(args, guard, projectRoot, config, onEvent = () => {}) {
       { role: 'user',   content: `Tests en échec (itération ${iter}/${maxIter}) :\n\n${failures}\n\nProduis les appels d'outils pour corriger.` },
     ];
 
+    // Même budget que la tâche (config._taskTokens, partagé avec l'agent) : sans lui,
+    // jusqu'à 10 générations échappaient au plafond.
+    const tokens = config._taskTokens;
+    const maxTokens = config.maxTaskTokens ?? MAX_TASK_TOKENS;
+    if (tokens && maxTokens > 0 && tokens.used >= maxTokens) {
+      return done({ ok: false, error: 'PLAFOND_TOKENS_ATTEINT' });
+    }
+    const onUsage = (usage) => {
+      if (tokens) tokens.used += (usage.inputTokens || 0) - (usage.cachedTokens || 0) + (usage.outputTokens || 0);
+    };
+
     let llmResponse;
     try {
-      llmResponse = await llmGenerate(messages, { temperature: DEFAULT_TEMPERATURE, signal: config._signal });
+      llmResponse = await llmGenerate(messages, { temperature: DEFAULT_TEMPERATURE, signal: config._signal, onUsage });
     } catch (e) {
       return done({ ok: false, error: `LLM_ERREUR: ${e.message}` });
     }
