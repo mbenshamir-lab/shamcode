@@ -78,7 +78,8 @@ async function loadConfig() {
   let loaded = {};
   try {
     const raw = fs.readFileSync(getConfigPath(), 'utf8');
-    loaded = JSON.parse(raw);
+    // BOM ajouté par certains éditeurs Windows : JSON.parse le refuse
+    loaded = JSON.parse(raw.replace(/^\uFEFF/, ''));
   } catch { /* fichier absent → défauts */ }
 
   const config = { ...DEFAULTS, ...loaded };
