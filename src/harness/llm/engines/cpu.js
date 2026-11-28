@@ -33,7 +33,8 @@ class CpuEngine extends LlmEngine {
     this.modelPath = config.modelPath || '';
     this._importFn = _importFn;
 
-    this.contextSize    = Number(config.cpuContextSize) || 4096;
+    // La première requête de l'agent dépasse 4 096 tokens : en dessous, aucune tâche ne démarre
+    this.contextSize    = Number(config.cpuContextSize) || 8192;
     this.threads        = Number(config.cpuThreads) || DEFAULT_THREADS;
     this.batchSize      = Number(config.cpuBatchSize) || 256;
     this.flashAttention = config.cpuFlashAttention === false ? false : 'auto';

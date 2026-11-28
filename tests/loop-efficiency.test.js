@@ -55,6 +55,27 @@ describe('stagnation — la boucle qui n\'avance pas est coupée', () => {
     assert.ok(calls <= 12, `${calls} appels`);
   });
 
+  it('tests verts relancés sans rien changer, malgré une durée différente à chaque fois', async () => {
+    const files = { 'package.json': '{"scripts":{"test":"node t.js"}}', 't.js': 'console.log("ok " + Math.random() + " ms")' };
+    const { result, calls } = await run(() => ({ tool: 'run_tests', args: {} }), files);
+    assert.equal(result.error, 'STAGNATION_DÉTECTÉE');
+    assert.ok(calls <= 12, `${calls} appels`);
+  });
+
+  it('notes écrites et relues en alternance', async () => {
+    const { result, calls } = await run(n => ({ tool: 'scratchpad', args: n % 2 ? { action: 'set', key: 'k', value: 'v' } : { action: 'get', key: 'k' } }));
+    assert.equal(result.error, 'STAGNATION_DÉTECTÉE');
+    assert.ok(calls <= 14, `${calls} appels`);
+  });
+
+  it('attente d\'un service alternée avec la lecture d\'une note', async () => {
+    const { result, calls } = await run(n => (n % 2
+      ? { tool: 'check_service', args: { port: 9, timeout: 100 } }
+      : { tool: 'scratchpad', args: { action: 'get', key: 'k' } }));
+    assert.equal(result.error, 'STAGNATION_DÉTECTÉE');
+    assert.ok(calls <= 24, `${calls} appels`);
+  });
+
   it('avertit le modèle avant d\'arrêter, en nommant le dernier échec', async () => {
     const { seen } = await run(n => ({ tool: 'replace_code', args: { path: 'a.js', old_string: `absent ${n}`, new_string: 'y' } }));
     const warned = seen.filter(s => s.includes('STAGNATION'));
@@ -77,6 +98,14 @@ describe('stagnation — le vrai travail n\'est jamais coupé', () => {
     // 8 échecs, une écriture, 8 échecs : jamais 10 d'affilée
     const { result } = await run(n => (n === 9 ? good(n) : n <= 17 ? bad(n) : null));
     assert.equal(result.ok, true);
+  });
+
+  it('retester après chaque nouveau contenu reste un progrès', async () => {
+    const files = { 'package.json': '{"scripts":{"test":"node t.js"}}', 't.js': 'console.log("ok")', 'a.js': 'v0' };
+    const { result } = await run(n => (n > 30 ? null : n % 2
+      ? { tool: 'write_file', args: { path: 'a.js', content: `v${n}` } }
+      : { tool: 'run_tests', args: {} }), files);
+    assert.equal(result.ok, true, result.error);
   });
 
   it('ask_user et plan ne comptent ni pour ni contre', async () => {

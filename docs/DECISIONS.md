@@ -434,3 +434,25 @@
 3. **Attente** : dès la 3ᵉ consultation d'affilée, pause de 2, 4, 8, 16 puis 30 s ; avertissement à la 8ᵉ, arrêt `ATTENTE_SANS_FIN` à la 15ᵉ. `config._sleep` remplace la pause dans les tests.
 **Conséquences** : les journaux de fin portent `llm_calls`, `unusable_replies` et `poll_wait_s`. Une attente de plus de 5 minutes sans autre action est coupée ; les attentes ordinaires sont plus lentes. Seuils tirés d'une simulation et de huit sessions : à réviser sur des mesures.
 **Alternatives rejetées** : seuil d'échecs d'affilée (jamais plus de 2 en réel) ; délai sur résultat identique (22 résultats sur 23 différaient) ; paramètre d'attente dans les outils (change les schémas MCP).
+
+---
+
+## ADR-044 : Contexte CPU à 8 192 et trois boucles stériles restantes
+
+**Date** : 2026-11-28
+**Contexte** : avec le moteur CPU, la première requête (4 157 tokens sur un petit projet, 5 867 sur ce dépôt) dépassait le contexte de 4 096 : aucune tâche ne démarrait. Les réglages `cpu*` de la racine de la configuration n'étaient pas transmis au moteur. En simulation, des tests verts relancés, des notes lues et écrites en alternance et une attente alternée avec une note échappaient aux détecteurs.
+**Décision** :
+1. Contexte CPU par défaut à 8 192 (amende ADR-033). `registry.cpu.rootKeys` fait suivre les réglages de la racine ; `model.engines.cpu` reste prioritaire. Un 4 096 enregistré à la racine, ancien défaut jamais transmis, est relevé à la lecture.
+2. `run_tests` vert ne compte comme progrès qu'une fois par commande, jusqu'au prochain contenu de fichier inédit.
+3. Un appel `plan`, `goal`, `ask_user` ou `scratchpad` rejoué à l'identique avec le même résultat compte comme une étape sans progrès (amende ADR-043).
+**Conséquences** : plus de mémoire consommée par le contexte CPU. La boucle démarre, sans que cela rende un modèle 3B efficace sur un PC modeste (30 à 75 s par étape mesurées, deux tâches non abouties en 8 minutes). `run_shell` relancé avec une sortie variable compte toujours comme un progrès.
+
+---
+
+## ADR-045 : Résultats de `search_grep` réinjectés en texte groupé
+
+**Date** : 2026-11-28
+**Contexte** : les résultats de `search_grep` étaient renvoyés au modèle en JSON : chemin et clés répétés à chaque ligne. Mesuré sur cinq recherches de 50 résultats : le texte groupé par fichier est 37 à 69 % plus court ; trois des cinq dépassaient en JSON la limite locale de 6 000 caractères. Proposition `docs/PROPOSITION_AGENT_TOOLS.md`, option B validée.
+**Décision** : `grep.js` exporte `formatGrepMatches` : le chemin une fois, puis `ligne:texte`, et `ligne-texte` pour les lignes de contexte (chevauchements fusionnés) ; `Aucune correspondance.` si vide. `agent.js` l'utilise uniquement pour le message réinjecté au modèle. Le résultat `{ ok, matches }`, la trace, l'interface et le serveur MCP sont inchangés.
+**Conséquences** : moins de tokens par recherche et moins de troncatures en local. Non mesuré : la fréquence de `search_grep` dans de vraies tâches, et l'effet du format sur un modèle 3B.
+**Alternatives rejetées** : binaire Rust `agent-tools` (aucun gain de tokens à format égal, toolchain et garde-fous à dupliquer) ; NDJSON (−0,3 % seulement) ; serveur MCP à un seul outil (casse le schéma public).

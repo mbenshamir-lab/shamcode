@@ -35,6 +35,7 @@ const { resolveResultLimit } = require('./context/budget');
 const { disposeBrowser }    = require('./tools/browser');
 const { _detectRunner, _keepEnds } = require('./tools/test-runner');
 const { disposeLsp }        = require('./tools/lsp');
+const { formatGrepMatches } = require('./tools/grep');
 const { recordFeedback, loadFeedback } = require('./feedback/store');
 const { buildFeedbackSummary }         = require('./feedback/advisor');
 const { loadActiveGoal, saveGoal, archiveActiveGoal } = require('./goals/store');
@@ -759,6 +760,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
   let _stagnationStops = 0;
   const _fileStates   = new Set();   // « chemin|empreinte » déjà atteints
   const _writtenPaths = new Set();   // fichiers modifiés au moins une fois
+  const _greenCommands = new Set();  // commandes de test déjà vertes depuis le dernier contenu inédit
+  const _neutralCalls  = new Set();  // empreintes des appels neutres déjà faits
   const _failures     = new Map();   // empreinte d'un échec → { command, count }
   let _pollRun = 0;                  // consultations d'affilée
   let _pollWaitMs = 0;
@@ -787,6 +790,8 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     const newState = states.some(state => !_fileStates.has(state.join('|')));
     // Un fichier jamais touché : le travail s'étend, les échecs passés ne comptent plus
     if (states.some(([file]) => !_writtenPaths.has(file))) _failures.clear();
+    // Un contenu inédit mérite d'être retesté ; un retour à un contenu connu, non
+    if (newState) _greenCommands.clear();
     for (const state of states) {
       _fileStates.add(state.join('|'));
       _writtenPaths.add(state[0]);
@@ -828,7 +833,14 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     _seenResults.add(fingerprint);
     if (writes.count > 0) return writes.newState;
     if (modTools.has(call.tool)) return true; // écriture non relisible : bénéfice du doute
-    if ((call.tool === TOOLS.RUN_TESTS || call.tool === TOOLS.FIX_LOOP) && res.exitCode === 0) return true;
+    // Relancer des tests verts sans rien changer n'avance pas, même si la durée affichée diffère
+    if (call.tool === TOOLS.RUN_TESTS && res.exitCode === 0) {
+      const command = String(call.args?.command || '');
+      if (_greenCommands.has(command)) return false;
+      _greenCommands.add(command);
+      return true;
+    }
+    if (call.tool === TOOLS.FIX_LOOP && res.exitCode === 0) return true;
     if (call.tool === TOOLS.READ_FILE) {
       const fresh = (Array.isArray(res.files)
         ? res.files.filter(f => f.ok).map(f => _normPath(f.path))
@@ -838,6 +850,17 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
       if (fresh.length > 0) return true;
     }
     return unseen;
+  };
+
+  /**
+   * Un appel de note ou de dialogue est neutre la première fois. Le refaire à l'identique
+   * n'apprend rien : sans ce compte, une alternance de ces appels n'était jamais arrêtée.
+   */
+  const _repeatedNeutral = (call, res) => {
+    const fingerprint = crypto.createHash('sha1').update(JSON.stringify([call.tool, call.args, res])).digest('hex');
+    if (_neutralCalls.has(fingerprint)) return true;
+    _neutralCalls.add(fingerprint);
+    return false;
   };
 
   /** Termine la tâche sur un échec décidé par le harness, en le signalant à l'utilisateur. */
@@ -1225,6 +1248,9 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
           const next = (result.start_line ?? 1) + shownLines - 1 - header;
           resultForContext.content += `\nPour lire la suite : read_file avec "start_line": ${next} (${result.total_lines} lignes au total).`;
         }
+      } else if (parsed.tool === TOOLS.SEARCH_GREP && Array.isArray(result.matches)) {
+        // Texte groupé par fichier (ADR-045) ; la trace et l'UI gardent le résultat structuré
+        resultForContext = _truncateResult(formatGrepMatches(result.matches), resultLimit);
       } else if (typeof result.stdout === 'string') {
         // Un lanceur écrit son bilan et ses échecs à la fin : couper au milieu, pas à la fin
         resultForContext = { ...result, stdout: _keepEnds(result.stdout, resultLimit) };
@@ -1359,9 +1385,11 @@ async function runAgent({ task, llmGenerate, projectRoot, config = {}, onEvent =
     }
 
     // Stagnation : mesure le progrès, pas la répétition. Les outils d'attente et de dialogue
-    // ne disent rien de l'avancement : ils ne comptent ni pour ni contre.
-    if (!POLLING_TOOLS.has(parsed.tool) && !STAGNATION_NEUTRAL.has(parsed.tool)) {
-      if (_madeProgress(parsed, result, writes)) {
+    // ne disent rien de l'avancement : ils ne comptent ni pour ni contre, sauf un appel de
+    // dialogue rejoué à l'identique.
+    const neutralTool = STAGNATION_NEUTRAL.has(parsed.tool);
+    if (!POLLING_TOOLS.has(parsed.tool) && (!neutralTool || _repeatedNeutral(parsed, result))) {
+      if (!neutralTool && _madeProgress(parsed, result, writes)) {
         _stagnation = 0;
       } else {
         _stagnation++;

@@ -310,6 +310,52 @@ describe('registry — cpu', () => {
     const eng = registry.cpu.factory({ modelPath: '/tmp/m.gguf' });
     assert.ok(eng instanceof CpuEngine);
   });
+
+  const { LlmRouter } = require('../src/harness/llm/router');
+  const instance = config => new LlmRouter(['cpu'], registry, config)._getInstance('cpu');
+
+  it('contexte par défaut : 8 192 tokens', () => {
+    assert.equal(instance({}).contextSize, 8192);
+  });
+
+  it('les réglages cpu* de la racine atteignent le moteur', () => {
+    const eng = instance({ cpuContextSize: 12000, cpuThreads: 3, model: { engines: { cpu: { modelPath: '/m.gguf' } } } });
+    assert.equal(eng.contextSize, 12000);
+    assert.equal(eng.threads, 3);
+    assert.equal(eng.modelPath, '/m.gguf');
+  });
+
+  it('un réglage posé sur le moteur l\'emporte sur la racine', () => {
+    const eng = instance({ cpuContextSize: 12000, model: { engines: { cpu: { cpuContextSize: 4096 } } } });
+    assert.equal(eng.contextSize, 4096);
+  });
+});
+
+describe('config — contexte CPU enregistré', () => {
+  const os = require('os');
+  const { loadConfig } = require('../src/main/config');
+
+  async function load(saved) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-cfg-'));
+    const previous = process.env.HARNESS_DATA_DIR;
+    process.env.HARNESS_DATA_DIR = dir;
+    try {
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(saved));
+      return await loadConfig();
+    } finally {
+      if (previous === undefined) delete process.env.HARNESS_DATA_DIR;
+      else process.env.HARNESS_DATA_DIR = previous;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('relève l\'ancien défaut de 4 096', async () => {
+    assert.equal((await load({ cpuContextSize: 4096 })).cpuContextSize, 8192);
+  });
+
+  it('garde une autre valeur choisie', async () => {
+    assert.equal((await load({ cpuContextSize: 16384 })).cpuContextSize, 16384);
+  });
 });
 
 // ── Constantes ─────────────────────────────────────────────────────────────────

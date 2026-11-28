@@ -42,7 +42,7 @@ const DEFAULTS = {
   voiceModel: 'base',   // 'base' (~75 Mo) | 'small' (~250 Mo, plus précis)
   enableGit: true,
   // Moteur CPU/GGUF (ADR-033) : contexte court, KV quantifié, flash attention.
-  cpuContextSize: 4096,
+  cpuContextSize: 8192,
   cpuThreads: null,          // null = cœurs logiques − 1 (plafonné à 8)
   cpuBatchSize: 256,
   cpuFlashAttention: true,
@@ -83,6 +83,9 @@ async function loadConfig() {
   } catch { /* fichier absent → défauts */ }
 
   const config = { ...DEFAULTS, ...loaded };
+  // 4 096 : ancien défaut, enregistré avec la configuration mais jamais transmis au moteur,
+  // et trop petit pour la première requête (ADR-044)
+  if (config.cpuContextSize === 4096) config.cpuContextSize = DEFAULTS.cpuContextSize;
 
   // Résoudre les clés chiffrées en mémoire (safeStorage)
   const sk = getSafeKeys();

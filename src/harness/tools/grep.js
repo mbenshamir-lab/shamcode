@@ -122,4 +122,30 @@ function _walk(dir, regex, extFilter, matches, ignore, projectRoot, relRoot, con
   }
 }
 
-module.exports = { searchGrep };
+/**
+ * Texte compact des résultats pour le modèle (ADR-045) : le chemin une fois par fichier,
+ * puis `ligne:texte` (`ligne-texte` pour le contexte). En JSON, chemin et clés se répétaient
+ * à chaque ligne : 37 à 69 % de caractères en plus, et une troncature locale plus fréquente.
+ *
+ * @param {{ path: string, line: number, text: string, context?: { line: number, text: string, match: boolean }[] }[]} matches
+ * @returns {string}
+ */
+function formatGrepMatches(matches) {
+  if (!Array.isArray(matches) || matches.length === 0) return 'Aucune correspondance.';
+  const files = new Map();
+  for (const m of matches) {
+    if (!files.has(m.path)) files.set(m.path, new Map());
+    const lines = files.get(m.path);
+    // Contextes qui se chevauchent : chaque ligne n'apparaît qu'une fois
+    for (const c of m.context || [{ line: m.line, text: m.text, match: true }]) {
+      const known = lines.get(c.line);
+      if (!known || (c.match && !known.match)) lines.set(c.line, c);
+    }
+  }
+  return [...files].map(([file, lines]) => [
+    file,
+    ...[...lines.values()].sort((a, b) => a.line - b.line).map(c => `${c.line}${c.match ? ':' : '-'}${c.text}`),
+  ].join('\n')).join('\n');
+}
+
+module.exports = { searchGrep, formatGrepMatches };

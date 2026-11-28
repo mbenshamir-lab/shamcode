@@ -51,6 +51,8 @@ const registry = {
     requiresKey: false,
     offline:     true,
     cost:        'free',
+    // Réglages rangés à la racine de la configuration, hors de model.engines.cpu
+    rootKeys:    ['cpuContextSize', 'cpuThreads', 'cpuBatchSize', 'cpuFlashAttention', 'cpuGpuLayers', 'cpuKvType'],
     factory:     (cfg)         => new CpuEngine(cfg),
   },
 };

@@ -67,8 +67,13 @@ class LlmRouter {
     const entry = this.registry[name];
     if (!entry || !entry.factory) return null;
 
-    const engineCfg = this.config?.model?.engines?.[name] || {};
-    const bridge    = this.bridges[name] || null;
+    const rootCfg = {};
+    for (const key of entry.rootKeys || []) {
+      if (this.config?.[key] != null) rootCfg[key] = this.config[key];
+    }
+    // Un réglage posé sur le moteur lui-même reste prioritaire
+    const engineCfg = { ...rootCfg, ...(this.config?.model?.engines?.[name] || {}) };
+    const bridge   = this.bridges[name] || null;
     const inst      = entry.factory(engineCfg, bridge);
     this._instances[name] = inst;
     return inst;
